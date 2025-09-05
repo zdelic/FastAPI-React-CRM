@@ -1,0 +1,85 @@
+.task-x-overlay {
+  position: absolute;
+  inset: 0; /* pokriva tačno task */
+  pointer-events: none;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.task-x-line {
+  position: absolute;
+  width: 3px; /* debljina crte */
+  height: 660%; /* dovoljno da pređe dijagonalu taska */
+  top: 0% !important; /* centriraj da crta prođe celim taskom */
+  opacity: 0.8;
+}
+
+/* "/" crta */
+.task-x-diagonal-1 {
+  left: 90%;
+  transform: rotate(81deg) scaleY(1.02) translateY(-8%);
+  transform-origin: top left;
+}
+
+/* "\" crta */
+.task-x-diagonal-2 {
+  right: 90%;
+  transform: rotate(-81deg) scaleY(1.02) translateY(-10%);
+  transform-origin: top right;
+}
+
+/* Boje */
+.task-x-line.red {
+  background-color: #dc2626;
+}
+
+.task-x-line.white {
+  background-color: white;
+}
+
+.fc-license-message {
+  display: none !important;
+}
+
+.delayed-outline {
+  /* izgleda kao border 4px, ali bez promjene veličine */
+  box-shadow: inset 0 0 0 4px #dc2626;
+  border-radius: inherit; /* da slijedi postojeći radius */
+}
+
+@media print {
+  @page { size: A3 landscape; margin: 5mm; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  body.print-a3 * { visibility: hidden; }
+  body.print-a3 .print-area, body.print-a3 .print-area * { visibility: visible; }
+  body.print-a3 .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+
+  body.print-a3 .fc,
+  body.print-a3 .fc .fc-scroller,
+  body.print-a3 .fc .fc-scroller-liquid-absolute {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+  body.print-a3 .fc .fc-timeline-body,
+  body.print-a3 .fc .fc-resource-timeline-body,
+  body.print-a3 .fc .fc-timeline-lane-frame {
+    height: auto !important;
+  }
+
+  body.print-a3 .fc .fc-resource,
+  body.print-a3 .fc .fc-timeline-slot,
+  body.print-a3 .fc .fc-event,
+  body.print-a3 .fc .fc-timeline-lane {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  body.print-a3 .fc { font-size: 9px; }
+}
+
+.fc .fc-bg-event {
+  opacity: 0.18;       /* 0.15–0.25 po ukusu */
+   pointer-events: none !important;
+}

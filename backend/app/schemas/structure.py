@@ -1,4 +1,6 @@
 from pydantic import BaseModel
+from typing import Optional
+
 
 class TopCreate(BaseModel):
     name: str
@@ -18,23 +20,51 @@ class BauteilCreate(BaseModel):
 class Top(BaseModel):
     id: int
     name: str
+    ebene_id: int
+    process_model_id: Optional[int] = None
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Ebene(BaseModel):
     id: int
     name: str
+    stiege_id: int
+    process_model_id: Optional[int] = None
+    tops: list[Top] = []
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Stiege(BaseModel):
     id: int
     name: str
+    bauteil_id: int
+    process_model_id: Optional[int] = None
+    ebenen: list[Ebene] = []
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 class Bauteil(BaseModel):
     id: int
     name: str
+    project_id: int
+    process_model_id: Optional[int] = None
+    stiegen: list[Stiege] = []
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class StiegeUpdate(BaseModel):
+    name: Optional[str] = None
+    process_model_id: Optional[int] = None
+
+class BauteilUpdate(BaseModel):
+    name: Optional[str] = None
+    process_model_id: Optional[int] = None
+
+class EbeneUpdate(BaseModel):
+    name: Optional[str] = None
+    process_model_id: Optional[int] = None
+
+class TopUpdate(BaseModel):
+    name: Optional[str] = None
+    process_model_id: Optional[int] = None

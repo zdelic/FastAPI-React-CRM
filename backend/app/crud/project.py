@@ -2,10 +2,17 @@ from sqlalchemy.orm import Session
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.project import ProjectCreate
+from app.models.structure import Bauteil
 
 def create_project(db: Session, project: ProjectCreate, user: User):
+    db_user = db.merge(user)
     db_project = Project(**project.dict())
-    db_project.users.append(user)
+    db_project.users.append(db_user)
+
+    # Automatski dodaj Bauteil
+    default_bauteil = Bauteil(name="BT-1")
+    db_project.bauteile = [default_bauteil]
+
     db.add(db_project)
     db.commit()
     db.refresh(db_project)
