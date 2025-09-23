@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { LoadingProvider, useLoading } from "./context/LoadingContext";
 import LoadingOverlay from "./components/LoadingOverlay";
 import { loaderBridge } from "./api/axios"; // ↓ vidi axios.ts
+import Protokoll from "./pages/Protokoll";
 
 // Mali helper koji “spaja” axios interceptore s globalnim loaderom
 function LoaderBridgeHook() {
@@ -92,6 +93,10 @@ function AppRoutes() {
             <ProcessModelList />
           </AdminRoute>
         }
+      />
+      <Route
+        path="/protokoll"
+        element={<Protokoll />}        
       />
     </Routes>
   );

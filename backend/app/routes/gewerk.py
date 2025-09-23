@@ -5,7 +5,9 @@ from app.models.gewerk import Gewerk
 from pydantic import BaseModel
 from typing import List
 
-router = APIRouter()
+from app.audit import audit_dep
+router = APIRouter(dependencies=[Depends(audit_dep())])
+
 
 class GewerkCreate(BaseModel):
     name: str

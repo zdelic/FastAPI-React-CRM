@@ -161,9 +161,7 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({ stats, projectId, c
           </div>
         </div>
 
-        <div>
-          <ProgressCurve projectId={projectId} />
-        </div>
+        
       </div>
     </div>
   );

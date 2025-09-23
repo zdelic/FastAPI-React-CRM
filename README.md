@@ -1,6 +1,6 @@
 # FastAPI + PostgreSQL / SQLite + React
 
-Monorepo: `backend/` (FastAPI) i `frontend/` (React).
+Monorepo: `backend/` (FastAPI) , `frontend/` (React).
 
 ## Backend (FastAPI)
 ```powershell

@@ -26,12 +26,12 @@ const Login: React.FC = () => {
   return (
     <div className="flex min-h-screen">
       {/* LEFT IMAGE */}
-      <div className="hidden md:flex w-1/2 bg-gray-100 items-center justify-center">
-        <img src="/images/hero.png" alt="Hero" className="max-w-[80%] h-auto" />
+      <div className="hidden md:flex w-2/3 bg-gray-100 items-center justify-center">
+        <img src="/images/hero.png" alt="Hero" className="max-w-[90%] h-auto" />
       </div>
 
       {/* LOGIN FORM */}
-      <div className="flex w-full md:w-1/2 items-center justify-center bg-white">
+      <div className="flex w-full md:w-1/3 items-center justify-center bg-white">
         <div className="w-full max-w-md p-8">
           <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">🔐 Anmeldung</h2>
           <form onSubmit={handleLogin} className="space-y-5">

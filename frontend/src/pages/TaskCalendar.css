@@ -77,9 +77,76 @@
   }
 
   body.print-a3 .fc { font-size: 9px; }
+  /* Forsiraj da se boje pozadina i bedževa zaista odštampaju */
+  .print-area, .print-area * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* X linije neka budu jače na papiru */
+  .task-x-line {
+    opacity: 0.95 !important;
+  }
 }
 
 .fc .fc-bg-event {
   opacity: 0.18;       /* 0.15–0.25 po ukusu */
-   pointer-events: none !important;
+  pointer-events: none !important;
 }
+
+/* =========================
+   DODATCI ZA FIX Z-INDEXA
+   ========================= */
+
+/* 1) Spusti X overlay ispod headera */
+.task-x-overlay {
+  z-index: 0; /* override prethodnog 10 */
+}
+
+/* 2) Naslov i sadržaj eventa iznad X-a (da X ne prekriva tekst eventa) */
+.fc .fc-event .fc-event-title,
+.fc .fc-event .fc-event-main {
+  position: relative;
+  z-index: 1;
+}
+
+/* 3) Podigni header (naslove dana) iznad svega u bodyju kalendara */
+.fc .fc-timeline-header,
+.fc .fc-col-header {
+  position: relative;
+  z-index: 20;
+}
+
+/* ====== Timeline header: proširi red i ukloni clipping ====== */
+
+/* dopusti da header može biti viši i da se sadržaj vidi */
+.fc .fc-scrollgrid-section-header,
+.fc .fc-scrollgrid-section-header .fc-scroller,
+.fc .fc-col-header,
+.fc .fc-timeline-header {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* povećaj visinu reda i ćelija zaglavlja */
+.fc .fc-timeline-header-row,
+.fc .fc-col-header-cell {
+  height: 40px !important;   /* po potrebi 44–48px */
+}
+
+/* više „zraka“ oko teksta i bez prisilnog skraćivanja */
+.fc .fc-col-header-cell-cushion {
+  display: block;
+  padding: 8px 10px !important; /* veći padding = viši red */
+  line-height: 1.2;
+  white-space: normal;          /* dozvoli prelom (ako ima 2 linije) */
+}
+
+/* za svaki slučaj zadrži header iznad sadržaja */
+.fc .fc-timeline-header,
+.fc .fc-col-header {
+  position: relative;
+  z-index: 20; /* već si imao 20 – ostaje */
+}
+
+@keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }

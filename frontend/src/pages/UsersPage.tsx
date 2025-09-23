@@ -478,7 +478,14 @@ export default function UsersPage() {
                                 <div>
                                 <div className="font-medium text-slate-900">{u.name}</div>
                                 {u.email && (
-                                    <div className="text-sm text-slate-700">{u.email}</div>
+                                  <a
+                                    href={`mailto:${u.email.trim()}`}
+                                    className="text-sm text-slate-700 hover:underline hover:text-blue-600 break-all"
+                                    title={`E-Mail senden an ${u.email}`}
+                                    onClick={(e) => e.stopPropagation()} 
+                                  >
+                                    {u.email}
+                                  </a>
                                 )}
                                 </div>
                             </div>

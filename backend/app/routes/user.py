@@ -1,5 +1,6 @@
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from app.audit import audit_dep, set_audit_objects
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from typing import List
@@ -28,8 +29,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 def list_users(db: Session = Depends(get_db)):
     return db.execute(select(User)).scalars().all()
 
-@router.post("", response_model=UserRead, status_code=201, dependencies=[Depends(require_admin)])
-def create_user(data: UserCreate, db: Session = Depends(get_db)):
+@router.post("", response_model=UserRead, status_code=201,
+             dependencies=[Depends(require_admin), Depends(audit_dep("USER_CREATE","user"))])
+def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db)):
     if data.role not in ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
     if db.query(User).filter(User.email == data.email).first():
@@ -45,6 +47,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db)):
         avatar_url=data.avatar_url,
     )
     db.add(user); db.commit(); db.refresh(user)
+    set_audit_objects(request, None, object_id=user.id)
     return user
 
 @router.patch("/{user_id}", response_model=UserRead, dependencies=[Depends(require_admin)])

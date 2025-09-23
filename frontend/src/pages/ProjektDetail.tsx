@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { fetchStructure } from "../api/project";
 import api from "../api/axios";
@@ -14,7 +14,9 @@ import {
 } from "chart.js";
 import ProjektStruktur from "../components/ProjektStruktur";
 import ProjectUsersCard from "../components/ProjectUsersCard";
+import ProgressCurve from "../components/ProgressCurve";
 
+type TabKey = "struktur" | "mitglieder" | "statistik" | "kurve";
 
 type Role = "admin" | "bauleiter" | "polier" | "sub";
 
@@ -40,17 +42,30 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 const ProjektDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [bauteile, setBauteile] = useState<any[]>([]);
   const [newBauteil, setNewBauteil] = useState("");
   const [startDate, setStartDate] = useState<string | null>(null);
   const [formattedDate, setFormattedDate] = useState<string>("");
-  const [isEditingStartDate, setIsEditingStartDate] = useState(false);
   const [hasTasks, setHasTasks] = useState<boolean | null>(null);
   const [projectName, setProjectName] = useState<string>("");
   const role = React.useMemo(getRoleFromToken, []);
   const isAdmin = role === "admin";
 
+
+  const changeTab = (t: TabKey) => {
+    setActiveTab(t);
+    const sp = new URLSearchParams(searchParams);
+    sp.set("tab", t);
+    setSearchParams(sp, { replace: true });
+  };
   
+  const tabs: { key: TabKey; label: string; show: boolean }[] = [
+    { key: "struktur",   label: "Projektstruktur",    show: true },
+    { key: "mitglieder", label: "Projekt-Mitglieder", show: true },
+    { key: "statistik",  label: "Projektstatistik",   show: true },
+    { key: "kurve",      label: "Soll–Ist Kurve",    show: true },
+  ];
   
   const loadStructure = async () => {
     if (!id) return;
@@ -68,7 +83,7 @@ const ProjektDetail = () => {
           const formatted = parsed.toLocaleDateString("de-DE"); // dd.mm.yyyy
           setFormattedDate(formatted);
 
-          setStartDate(res.data.start_date);
+          
         } catch (err) {
           console.error("Fehler beim Laden des Projektstartdatums:", err);
         }
@@ -82,7 +97,7 @@ const ProjektDetail = () => {
 
   useEffect(() => {
     loadStructure();
-  }, []);
+  }, [id]);
 
   useEffect(() => {
   const checkTasks = async () => {
@@ -163,7 +178,7 @@ type EntityType = 'bauteil' | 'stiege' | 'ebene' | 'top';
 
 const typeToPath: Record<EntityType, string> = {
   bauteil: "bauteils",
-  stiege: "stieges",
+  stiege: "stiegen",
   ebene: "ebenen",
   top: "tops",
 };
@@ -225,6 +240,17 @@ useEffect(() => {
   if (id) fetchStats();
 }, [id]);
 
+const asTab = (v: string | null): TabKey =>
+  v === "struktur" || v === "mitglieder" || v === "statistik" || v === "kurve"
+    ? v
+    : "statistik";
+
+const urlTab = asTab(searchParams.get("tab"));
+const [activeTab, setActiveTab] = React.useState<TabKey>(urlTab);
+
+useEffect(() => setActiveTab(asTab(searchParams.get("tab"))), [searchParams]);
+
+
 
 return (
   <div className="p-6 space-y-6">
@@ -232,7 +258,7 @@ return (
     <div className="h-24 md:h-30 bg-cover bg-center" style={{ backgroundImage: "url('/images/Startseite-OfficePark-2_01.png')" }}>
         <div className="h-full w-full bg-black bg-opacity-40 flex items-center justify-between px-6">
           <h1 className="text-white text-3xl md:text-3xl font-bold drop-shadow">
-            🏢 Projekt: {projectName}
+            🏢 Projekt-Dashboard: {projectName}
           </h1>
 
           {/* desna grupa dugmadi */}
@@ -257,46 +283,92 @@ return (
 
 
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-        {/* Lijevi stupac 1/3: Struktur + Mitglieder BEZ razmaka */}
-        <div className="md:col-span-1 flex flex-col gap-0">  
-        
-          <ProjektStruktur
-            newBauteil={newBauteil}
-            setNewBauteil={setNewBauteil}
-            addBauteil={addBauteil}
-            bauteile={bauteile}
-            editingNames={editingNames}
-            handleNameChange={handleNameChange}
-            saveEdit={saveEdit}
-            startEditing={startEditing}
-            deleteItem={deleteItem}
-            newStiegen={newStiegen}
-            setNewStiegen={setNewStiegen}
-            addStiege={addStiege}
-            newEbenen={newEbenen}
-            setNewEbenen={setNewEbenen}
-            addEbene={addEbene}
-            newTops={newTops}
-            setNewTops={setNewTops}
-            addTop={addTop}
-            loadStructure={loadStructure}
-            hasTasks={hasTasks}
-            handleSyncTasks={handleSyncTasks}
-          />
-        
-          {isAdmin && id && (
-            <ProjectUsersCard projectId={Number(id)} />
-          )}
-         </div>
-        <div className="md:col-span-2">
+      {/* ---- NOVO: TOP MENI (tabs) ---- */}
+      <div className="border-b border-gray-700">
+        <nav className="flex gap-2">
+           {tabs.filter(t => t.show).map(t => (            
+            <button
+              key={t.key}
+              onClick={() => changeTab(t.key)}
+              className={[
+                "px-4 py-2 rounded-t-lg",
+                activeTab === t.key
+                  ? "bg-gray-800 text-white border-x border-t border-gray-700"
+                  : "text-gray-700 hover:text-gray-300"
+              ].join(" ")}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+
+      {/* ---- NOVO: SADRŽAJ PO TABU ---- */}
+      {activeTab === "struktur" && (
+        <div className="w-full flex justify-center">
+          <div className="w-full max-w-4xl">
+            <ProjektStruktur
+              isAdmin={isAdmin}
+              newBauteil={newBauteil}
+              setNewBauteil={setNewBauteil}
+              addBauteil={addBauteil}
+              bauteile={bauteile}
+              editingNames={editingNames}
+              handleNameChange={handleNameChange}
+              saveEdit={saveEdit}
+              startEditing={startEditing}
+              deleteItem={deleteItem}
+              newStiegen={newStiegen}
+              setNewStiegen={setNewStiegen}
+              addStiege={addStiege}
+              newEbenen={newEbenen}
+              setNewEbenen={setNewEbenen}
+              addEbene={addEbene}
+              newTops={newTops}
+              setNewTops={setNewTops}
+              addTop={addTop}
+              loadStructure={loadStructure}
+              hasTasks={hasTasks}
+              handleSyncTasks={handleSyncTasks}
+            />
+          </div>
+
+          
+        </div>
+      )}
+
+      {activeTab === "mitglieder" && id && (
+        <div className="w-full flex justify-center">
+          <section className="w-full max-w-3xl md:max-w-4xl px-4"> 
+            {/* px-4 da ne lijepi uz rubove na mobitelu */}
+             <ProjectUsersCard projectId={Number(id)} isAdmin={isAdmin} />
+          </section>
+        </div>
+      )}
+
+
+      {activeTab === "statistik" && (
+        <div>
           <ProjektStatistik stats={stats} projectId={Number(id)} />
         </div>
+      )}
 
-      </div>
-  </div>
-);
+      {activeTab === "kurve" && id && (
+        <div className="w-full flex justify-center">
+          <section className="w-full max-w-6xl">
+            {/* isti vizual kao u Statistik tabu */}
+            <div className="rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-lg">
+              {/* visina kontejnera da Chart.js ima prostor */}
+              <div className="h-[520px]">
+                <ProgressCurve projectId={Number(id)} />
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
 
+    </div>
+  );
 };
 
 export default ProjektDetail;

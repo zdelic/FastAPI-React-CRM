@@ -16,7 +16,9 @@ class Task(Base):
     status = Column(String, default="offen")
     project_id = Column(Integer, ForeignKey("projects.id"))
     beschreibung = Column(Text, nullable=True)
-
+    sub_id = Column(Integer, ForeignKey("users.id"), nullable=True)  
+    
+    sub = relationship("User", lazy="joined") 
     top = relationship("Top")
     process_step = relationship("ProcessStep")
     project = relationship("Project")

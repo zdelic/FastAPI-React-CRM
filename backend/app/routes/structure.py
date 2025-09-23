@@ -1,3 +1,4 @@
+from fastapi import Request
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
@@ -8,7 +9,9 @@ from fastapi.encoders import jsonable_encoder
 from app.schemas.structure import Bauteil as BauteilSchema
 
 
-router = APIRouter()
+from app.audit import audit_dep, set_audit_objects
+router = APIRouter(dependencies=[Depends(audit_dep())])
+
 
 @router.post("/bauteile")
 def add_bauteil(data: BauteilCreate, db: Session = Depends(get_db)):
@@ -60,10 +63,11 @@ def get_full_project_structure(
     return crud.get_full_structure(db, project_id)
 
 # UPDATE
-from sqlalchemy.orm import joinedload
 
-@router.put("/bauteils/{bauteil_id}")
-def update_bauteil(bauteil_id: int, data: BauteilUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
+
+@router.put("/bauteile/{bauteil_id}",
+            dependencies=[Depends(audit_dep("BAUTEIL_UPDATE","bauteil"))])
+def update_bauteil(bauteil_id: int, request: Request, data: BauteilUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
     bauteil = (
         db.query(Bauteil)
         .options(
@@ -78,6 +82,7 @@ def update_bauteil(bauteil_id: int, data: BauteilUpdate, db: Session = Depends(g
     # obavezno oba polja
     bauteil.name = data.name
     bauteil.process_model_id = data.process_model_id
+    set_audit_objects(request, None, object_id=bauteil_id)
     db.commit()
 
     if propagate and data.process_model_id is not None:
@@ -93,7 +98,7 @@ def update_bauteil(bauteil_id: int, data: BauteilUpdate, db: Session = Depends(g
 
 
 
-@router.put("/stieges/{stiege_id}")
+@router.put("/stiegen/{stiege_id}")
 def update_stiege(stiege_id: int, data: StiegeUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
     stiege = (
         db.query(Stiege)
@@ -117,7 +122,7 @@ def update_stiege(stiege_id: int, data: StiegeUpdate, db: Session = Depends(get_
 
     return stiege
 
-@router.put("/ebenes/{ebene_id}")
+@router.put("/ebenen/{ebene_id}")
 def update_ebene(ebene_id: int, data: EbeneUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
     ebene = (
         db.query(Ebene)
@@ -151,7 +156,7 @@ def update_top(top_id: int, data: TopUpdate, db: Session = Depends(get_db)):
     db.commit()
     return obj
 
-@router.delete("/bauteils/{bauteil_id}")
+@router.delete("/bauteile/{bauteil_id}")
 def delete_bauteil(bauteil_id: int, db: Session = Depends(get_db)):
     obj = db.query(Bauteil).get(bauteil_id)
     if not obj:
@@ -160,7 +165,7 @@ def delete_bauteil(bauteil_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"message": "Deleted"}
 
-@router.delete("/stieges/{stiege_id}")
+@router.delete("/stiegen/{stiege_id}")
 def delete_stiege(stiege_id: int, db: Session = Depends(get_db)):
     obj = db.query(Stiege).get(stiege_id)
     if not obj:
@@ -194,21 +199,21 @@ def get_top(top_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Top not found")
     return top
 
-@router.get("/ebenes/{ebene_id}")
+@router.get("/ebenen/{ebene_id}")
 def get_ebene(ebene_id: int, db: Session = Depends(get_db)):
     ebene = db.query(Ebene).get(ebene_id)
     if not ebene:
         raise HTTPException(status_code=404, detail="Ebene not found")
     return ebene
 
-@router.get("/stieges/{stiege_id}")
+@router.get("/stiegen/{stiege_id}")
 def get_stiege(stiege_id: int, db: Session = Depends(get_db)):
     stiege = db.query(Stiege).get(stiege_id)
     if not stiege:
         raise HTTPException(status_code=404, detail="Stiege not found")
     return stiege
 
-@router.get("/bauteils/{bauteil_id}")
+@router.get("/bauteile/{bauteil_id}")
 def get_bauteil(bauteil_id: int, db: Session = Depends(get_db)):
     bauteil = db.query(Bauteil).get(bauteil_id)
     if not bauteil:

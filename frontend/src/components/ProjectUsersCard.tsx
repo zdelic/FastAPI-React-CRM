@@ -6,36 +6,44 @@ import {
 } from "../api/project";
 import { UserPlus, UserMinus, Search, Users } from "lucide-react";
 
-type Props = { projectId: number };
+type Props = { projectId: number; isAdmin?: boolean };
 
-export default function ProjectUsersCard({ projectId }: Props) {
+export default function ProjectUsersCard({ projectId, isAdmin = false }: Props) {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [assigned, setAssigned] = useState<User[]>([]);
   const [query, setQuery] = useState("");
   const [addingId, setAddingId] = useState<number | null>(null);
 
   useEffect(() => {
-    (async () => {
+  (async () => {
+    if (isAdmin) {
       const [users, projectUsers] = await Promise.all([getUsers(), getProjectUsers(projectId)]);
       setAllUsers(users);
       setAssigned(projectUsers);
-    })();
-  }, [projectId]);
+    } else {
+      const projectUsers = await getProjectUsers(projectId);
+      setAssigned(projectUsers);
+      setAllUsers([]); // nije potrebno, ali jasno
+    }
+  })();
+}, [projectId, isAdmin]);
+
 
   const assignedIds = new Set(assigned.map(u => u.id));
   const unassigned = useMemo(
-    () => allUsers.filter(u => !assignedIds.has(u.id)),
-    [allUsers, assignedIds]
+    () => (isAdmin ? allUsers.filter(u => !assignedIds.has(u.id)) : []),
+    [allUsers, assignedIds, isAdmin]
   );
 
   const filtered = useMemo(() => {
+    if (!isAdmin) return [];
     const q = query.toLowerCase().trim();
     if (!q) return unassigned;
     return unassigned.filter(u =>
-      (u.name || "").toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q)
+      (u.name || "").toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     );
-  }, [unassigned, query]);
+  }, [unassigned, query, isAdmin]);
+
 
   async function add(u: User) {
     setAddingId(u.id);
@@ -93,14 +101,16 @@ export default function ProjectUsersCard({ projectId }: Props) {
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => remove(u)}
-                    className="inline-flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700"
-                    title="Entfernen"
-                  >
-                    <UserMinus size={16} />
-                    Entfernen
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => remove(u)}
+                      className="inline-flex items-center gap-2 rounded-lg bg-slate-800/80 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-700"
+                      title="Entfernen"
+                    >
+                      <UserMinus size={16} />
+                      Entfernen
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -108,6 +118,7 @@ export default function ProjectUsersCard({ projectId }: Props) {
         </div>
 
         {/* Hinzufügen (flat) */}
+        {isAdmin && (
         <div className="mt-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="text-sm font-medium text-slate-200">Benutzer hinzufügen</div>
@@ -152,6 +163,7 @@ export default function ProjectUsersCard({ projectId }: Props) {
             )}
           </ul>
         </div>
+        )}
       </div>
     </div>
 

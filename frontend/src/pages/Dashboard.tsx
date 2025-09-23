@@ -161,6 +161,12 @@ const Dashboard: React.FC = () => {
             <FolderKanban size={18} />
             <span>Prozessmodelle</span>
           </NavLink>
+          
+          {getRoleFromToken() === "admin" && (
+            <NavLink to="/protokoll" className="...">Protokoll</NavLink>
+          )}
+
+          
         </div>
 
         {/* desna strana: akcijsko dugme */}

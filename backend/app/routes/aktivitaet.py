@@ -5,7 +5,9 @@ from app.database import get_db
 from app.models.aktivitaet import Aktivitaet
 from app.schemas.aktivitaet import AktivitaetCreate, AktivitaetRead
 
-router = APIRouter()
+from app.audit import audit_dep
+router = APIRouter(dependencies=[Depends(audit_dep())])
+
 
 @router.post("/aktivitaeten", response_model=AktivitaetRead)
 def create_aktivitaet(data: AktivitaetCreate, db: Session = Depends(get_db)):
