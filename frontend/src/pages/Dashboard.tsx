@@ -143,8 +143,8 @@ const Dashboard: React.FC = () => {
               ].join(" ")
             }
           >
-            <Users size={18} />
-            <span>Users</span>
+            
+            <span>👥 Users</span>
           </NavLink>
 
           <NavLink
@@ -157,13 +157,12 @@ const Dashboard: React.FC = () => {
                   : "text-slate-600 hover:text-slate-900 hover:bg-slate-50",
               ].join(" ")
             }
-          >
-            <FolderKanban size={18} />
-            <span>Prozessmodelle</span>
+          >            
+            <span>🧩 Prozessmodelle</span>
           </NavLink>
           
           {getRoleFromToken() === "admin" && (
-            <NavLink to="/protokoll" className="...">Protokoll</NavLink>
+            <NavLink to="" className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition">📜 Protokoll</NavLink>
           )}
 
           

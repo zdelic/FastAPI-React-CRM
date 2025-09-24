@@ -24,8 +24,7 @@ from app.routes import (
     aktivitaet,
     task,
     generate_tasks,
-    user,
-    audit, 
+    user, 
 )
 
 # Inicijalizacija aplikacije (brži JSON encoder)
@@ -62,19 +61,5 @@ app.include_router(aktivitaet.router)
 app.include_router(task.router)
 app.include_router(generate_tasks.router)
 app.include_router(user.router)
-app.include_router(audit.router)
 
 app.add_middleware(TimingMiddleware)
-
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)

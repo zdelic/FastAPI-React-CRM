@@ -16,9 +16,7 @@ from datetime import date, timedelta, datetime
 from sqlalchemy import func, select, or_, and_, case, cast, Integer
 
 today = date.today()
-
-from app.audit import audit_dep, set_audit_objects
-router = APIRouter(dependencies=[Depends(audit_dep())])
+router = APIRouter()
 
 
 # We'll create a condition for delayed tasks
@@ -31,7 +29,7 @@ delayed_condition = or_(
 
 status = ['Erledigt', 'In Bearbeitung', 'Offen']
 
-@router.get("/projects/{project_id}/tasks-count", dependencies=[Depends(audit_dep("TASK_COUNT_READ", "task"))])
+@router.get("/projects/{project_id}/tasks-count")
 def tasks_count(project_id: int, db: Session = Depends(get_db)):
     total = db.query(func.count()).select_from(Task).filter(Task.project_id == project_id).scalar() or 0
     return {"total": int(total)}
@@ -52,8 +50,7 @@ def list_tasks(db: Session = Depends(get_db)):
 from fastapi import Response
 import time
 
-@router.get("/projects/{project_id}/tasks-timeline", response_model=List[TimelineTask],
-            dependencies=[Depends(audit_dep("TASK_TIMELINE_READ", "task"))])
+@router.get("/projects/{project_id}/tasks-timeline", response_model=List[TimelineTask])
 def project_tasks_timeline(
     project_id: int,
     response: Response,
@@ -222,8 +219,7 @@ def find_process_model(top: Top, db: Session):
 
 
 
-@router.post("/projects/{project_id}/sync-tasks", response_model=list[TaskRead],
-             dependencies=[Depends(audit_dep("TASK_SYNC", "task"))])
+@router.post("/projects/{project_id}/sync-tasks", response_model=list[TaskRead])
 def sync_tasks(project_id: int, request: Request, db: Session = Depends(get_db)):
     project = db.query(Project).filter_by(id=project_id).first()
     if not project:
@@ -302,9 +298,7 @@ def sync_tasks(project_id: int, request: Request, db: Session = Depends(get_db))
                 db.delete(existing_task)
 
     db.commit()
-    # audit: kreirani id-jevi
-    from app.audit import set_audit_objects
-    set_audit_objects(request, [t.id for t in created_tasks])
+    
     return created_tasks
 
 
@@ -381,8 +375,7 @@ def get_progress_curve(project_id: int, db: Session = Depends(get_db)):
         "ist": [data[k]["ist"] for k in sorted_keys],
     }
 
-@router.put("/tasks/{task_id}", response_model=TaskRead,
-            dependencies=[Depends(audit_dep("TASK_UPDATE", "task"))])
+@router.put("/tasks/{task_id}", response_model=TaskRead)
 def update_task(task_id: int, request: Request, task_data: TaskUpdate, db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
@@ -393,18 +386,17 @@ def update_task(task_id: int, request: Request, task_data: TaskUpdate, db: Sessi
 
     db.commit()
     db.refresh(task)
-    set_audit_objects(request, None, object_id=task.id)
+    
     return task
 
-@router.delete("/tasks/{task_id}",
-               dependencies=[Depends(audit_dep("TASK_DELETE", "task"))])
+@router.delete("/tasks/{task_id}")
 def delete_task(task_id: int, request: Request, db: Session = Depends(get_db)):
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     db.delete(task)
     db.commit()
-    set_audit_objects(request, None, object_id=task.id)
+    
     return {"ok": True}
 
 @router.get("/subs")
@@ -415,8 +407,7 @@ def list_subs(db: Session = Depends(get_db)):
 
 
 
-@router.patch("/projects/{project_id}/tasks/bulk",
-              dependencies=[Depends(audit_dep("TASK_BULK_SET_SUB", "task"))])
+@router.patch("/projects/{project_id}/tasks/bulk")
 def bulk_update_tasks(project_id: int, request: Request, body: BulkBody, db: Session = Depends(get_db)):
     q = db.query(Task).filter(Task.project_id == project_id)
 
@@ -451,7 +442,6 @@ def bulk_update_tasks(project_id: int, request: Request, body: BulkBody, db: Ses
         if body.update.sub_id is not None:
             ids = [row[0] for row in q.with_entities(Task.id).distinct().all()]
             if not ids:
-                set_audit_objects(request, [])
                 return {"affected": 0}
 
             db.query(Task).filter(Task.id.in_(ids)).update(
@@ -459,9 +449,7 @@ def bulk_update_tasks(project_id: int, request: Request, body: BulkBody, db: Ses
                 synchronize_session=False
             )
             db.commit()
-
-            # audit – zapiši koje taskove si dirao
-            set_audit_objects(request, ids)
+            
             return {"affected": len(ids)}
 
         return {"affected": 0}

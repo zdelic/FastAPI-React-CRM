@@ -3,11 +3,13 @@ from fastapi.security import OAuth2PasswordRequestForm, HTTPBearer, HTTPAuthoriz
 from pydantic import BaseModel
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
-
+from app.schemas.user import UserRead
 from app.database import get_db
 from app.models.user import User
 from app.core import security
 from app.core.security import SECRET_KEY, ALGORITHM
+from app.deps import get_current_user
+
 
 router = APIRouter()
 bearer = HTTPBearer()
@@ -74,23 +76,31 @@ async def login(request: Request, db: Session = Depends(get_db)):
     if not user or not security.verify_password(password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
+
     # ubaci i id i email (radi kompatibilnosti s get_current_user)
     token = security.create_access_token({"sub": str(user.id), "email": user.email, "role": user.role})
     return {"access_token": token, "token_type": "bearer"}
 
+
 # ---------- LOGIN (FORM-DATA, OAuth2 kompatibilno) ----------
 @router.post("/login-form")
-def login_form(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login_form(
+    request: Request,   # ⬅️ dodaj Request da bi vezao audit objekat
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     # OAuth2 koristi form.username → kod nas je to email
     user = db.query(User).filter(User.email == form.username).first()
     if not user or not security.verify_password(form.password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
+    
     access_token = security.create_access_token(data={"sub": str(user.id), "email": user.email, "role": user.role})
     return {"access_token": access_token, "token_type": "bearer"}
 
 # ---------- /me ----------
-from app.schemas.user import UserRead
+
+
 @router.get("/me", response_model=UserRead)
 def me(current: User = Depends(get_current_user)):
     return current

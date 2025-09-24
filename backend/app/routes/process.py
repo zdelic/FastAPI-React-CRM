@@ -6,9 +6,7 @@ from app.database import get_db
 from app.models.process import ProcessModel, ProcessStep
 from app.schemas.process import ProcessModelCreate, ProcessModelRead
 
-from app.audit import audit_dep
-router = APIRouter(dependencies=[Depends(audit_dep())])
-
+router = APIRouter()
 
 @router.post("/process-models", response_model=ProcessModelRead)
 def create_process_model(data: ProcessModelCreate, db: Session = Depends(get_db)):

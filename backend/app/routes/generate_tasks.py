@@ -5,14 +5,11 @@ from datetime import timedelta, date
 from app.database import get_db
 from app.models.structure import Top, Ebene, Stiege, Bauteil
 from app.models.process import ProcessModel, ProcessStep
-from app.audit import audit_dep, set_audit_objects
 from app.models.task import Task
 from app.schemas.task import TaskRead
 from app.models.project import Project
 
-
-from app.audit import audit_dep
-router = APIRouter(dependencies=[Depends(audit_dep())])
+router = APIRouter()
 
 
 def find_process_model(top: Top, db: Session):
@@ -29,8 +26,7 @@ def find_process_model(top: Top, db: Session):
         return db.query(ProcessModel).filter_by(id=bauteil.process_model_id).first()
     return None
 
-@router.post("/projects/{project_id}/generate-tasks", response_model=list[TaskRead],
-              dependencies=[Depends(audit_dep("TASK_GENERATE", "task"))])
+@router.post("/projects/{project_id}/generate-tasks", response_model=list[TaskRead])
 def generate_tasks(project_id: int, request: Request, db: Session = Depends(get_db)):
     tops = db.query(Top).join(Ebene).join(Stiege).join(Bauteil).filter(Bauteil.project_id == project_id).all()
     if not tops:
@@ -72,5 +68,4 @@ def generate_tasks(project_id: int, request: Request, db: Session = Depends(get_
                 current_date = end_soll + timedelta(days=1)
 
     db.commit()
-    set_audit_objects(request, [t.id for t in created_tasks])
     return created_tasks

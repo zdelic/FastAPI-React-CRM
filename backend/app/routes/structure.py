@@ -8,9 +8,8 @@ from app.crud import structure as crud
 from fastapi.encoders import jsonable_encoder
 from app.schemas.structure import Bauteil as BauteilSchema
 
+router = APIRouter()
 
-from app.audit import audit_dep, set_audit_objects
-router = APIRouter(dependencies=[Depends(audit_dep())])
 
 
 @router.post("/bauteile")
@@ -65,8 +64,7 @@ def get_full_project_structure(
 # UPDATE
 
 
-@router.put("/bauteile/{bauteil_id}",
-            dependencies=[Depends(audit_dep("BAUTEIL_UPDATE","bauteil"))])
+@router.put("/bauteile/{bauteil_id}")
 def update_bauteil(bauteil_id: int, request: Request, data: BauteilUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
     bauteil = (
         db.query(Bauteil)
@@ -82,7 +80,6 @@ def update_bauteil(bauteil_id: int, request: Request, data: BauteilUpdate, db: S
     # obavezno oba polja
     bauteil.name = data.name
     bauteil.process_model_id = data.process_model_id
-    set_audit_objects(request, None, object_id=bauteil_id)
     db.commit()
 
     if propagate and data.process_model_id is not None:
