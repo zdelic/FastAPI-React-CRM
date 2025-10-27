@@ -7,6 +7,7 @@ from app.schemas.structure import BauteilUpdate, StiegeUpdate, EbeneUpdate, TopU
 from app.crud import structure as crud
 from fastapi.encoders import jsonable_encoder
 from app.schemas.structure import Bauteil as BauteilSchema
+from app.core.protocol import log_protocol
 
 router = APIRouter()
 
@@ -75,7 +76,7 @@ def update_bauteil(bauteil_id: int, request: Request, data: BauteilUpdate, db: S
         .first()
     )
     if not bauteil:
-        raise HTTPException(status_code=404, detail="Bauteil not found")
+        raise HTTPException(status_code=404, detail="Bauteil nicht gefunden")
 
     # obavezno oba polja
     bauteil.name = data.name
@@ -90,13 +91,14 @@ def update_bauteil(bauteil_id: int, request: Request, data: BauteilUpdate, db: S
                 for top in ebene.tops:
                     top.process_model_id = data.process_model_id
         db.commit()
-
+    log_protocol(db, request, action="structure.bauteil.update", ok=True, status_code=200,
+                 details={"bauteil_id": bauteil_id, "payload": data.model_dump(), "propagate": propagate})
     return bauteil
 
 
 
 @router.put("/stiegen/{stiege_id}")
-def update_stiege(stiege_id: int, data: StiegeUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
+def update_stiege(stiege_id: int, data: StiegeUpdate, request: Request, db: Session = Depends(get_db), propagate: bool = Query(True)):
     stiege = (
         db.query(Stiege)
         .options(joinedload(Stiege.ebenen).joinedload(Ebene.tops))
@@ -104,7 +106,7 @@ def update_stiege(stiege_id: int, data: StiegeUpdate, db: Session = Depends(get_
         .first()
     )
     if not stiege:
-        raise HTTPException(status_code=404, detail="Stiege not found")
+        raise HTTPException(status_code=404, detail="Stiege nicht gefunden")
 
     stiege.name = data.name
     stiege.process_model_id = data.process_model_id
@@ -116,11 +118,12 @@ def update_stiege(stiege_id: int, data: StiegeUpdate, db: Session = Depends(get_
             for top in ebene.tops:
                 top.process_model_id = data.process_model_id
         db.commit()
-
+    log_protocol(db, request, action="structure.stiege.update", ok=True, status_code=200,
+                 details={"stiege_id": stiege_id, "payload": data.model_dump(), "propagate": propagate})
     return stiege
 
 @router.put("/ebenen/{ebene_id}")
-def update_ebene(ebene_id: int, data: EbeneUpdate, db: Session = Depends(get_db), propagate: bool = Query(True)):
+def update_ebene(ebene_id: int, data: EbeneUpdate, request: Request, db: Session = Depends(get_db), propagate: bool = Query(True)):
     ebene = (
         db.query(Ebene)
         .options(joinedload(Ebene.tops))
@@ -128,7 +131,7 @@ def update_ebene(ebene_id: int, data: EbeneUpdate, db: Session = Depends(get_db)
         .first()
     )
     if not ebene:
-        raise HTTPException(status_code=404, detail="Ebene not found")
+        raise HTTPException(status_code=404, detail="Ebene nicht gefunden")
 
     ebene.name = data.name
     ebene.process_model_id = data.process_model_id
@@ -138,81 +141,88 @@ def update_ebene(ebene_id: int, data: EbeneUpdate, db: Session = Depends(get_db)
         for top in ebene.tops:
             top.process_model_id = data.process_model_id
         db.commit()
-
+    log_protocol(db, request, action="structure.ebene.update", ok=True, status_code=200,
+                 details={"ebene_id": ebene_id, "payload": data.model_dump(), "propagate": propagate})
     return ebene
 
 
 
 @router.put("/tops/{top_id}")
-def update_top(top_id: int, data: TopUpdate, db: Session = Depends(get_db)):
+def update_top(top_id: int, data: TopUpdate, request: Request, db: Session = Depends(get_db)):
     obj = db.query(Top).get(top_id)
     if not obj:
-        raise HTTPException(status_code=404, detail="Top not found")
+        raise HTTPException(status_code=404, detail="Top nicht gefunden")
     obj.name = data.name
     obj.process_model_id = data.process_model_id
     db.commit()
+    log_protocol(db, request, action="structure.top.update", ok=True, status_code=200,
+                 details={"top_id": top_id, "payload": data.model_dump()})
     return obj
 
-@router.delete("/bauteile/{bauteil_id}")
-def delete_bauteil(bauteil_id: int, db: Session = Depends(get_db)):
+@router.delete("/bauteile/{bauteil_id}", status_code=204)
+def delete_bauteil(bauteil_id: int, request: Request, db: Session = Depends(get_db)):
     obj = db.query(Bauteil).get(bauteil_id)
     if not obj:
-        raise HTTPException(status_code=404, detail="Bauteil not found")
+        raise HTTPException(status_code=404, detail="Bauteil nicht gefunden")
     db.delete(obj)
     db.commit()
-    return {"message": "Deleted"}
+    log_protocol(db, request, action="structure.bauteil.delete", ok=True, status_code=204, details={"bauteil_id": bauteil_id})
+    return {"message": "Gelöscht"}
 
-@router.delete("/stiegen/{stiege_id}")
-def delete_stiege(stiege_id: int, db: Session = Depends(get_db)):
+@router.delete("/stiegen/{stiege_id}", status_code=204)
+def delete_stiege(stiege_id: int, request: Request, db: Session = Depends(get_db)):
     obj = db.query(Stiege).get(stiege_id)
     if not obj:
-        raise HTTPException(status_code=404, detail="Stiege not found")
+        raise HTTPException(status_code=404, detail="Stiege nicht gefunden")
     db.delete(obj)
     db.commit()
-    return {"message": "Deleted"}
+    log_protocol(db, request, action="structure.stiege.delete", ok=True, status_code=204, details={"stiege_id": stiege_id})
+    return {"message": "Gelöscht"}
 
-@router.delete("/ebenen/{ebene_id}")
-def delete_ebene(ebene_id: int, db: Session = Depends(get_db)):
+@router.delete("/ebenen/{ebene_id}", status_code=204)
+def delete_ebene(ebene_id: int, request: Request, db: Session = Depends(get_db)):
     obj = db.query(Ebene).get(ebene_id)
     if not obj:
-        raise HTTPException(status_code=404, detail="Ebene not found")
+        raise HTTPException(status_code=404, detail="Ebene nicht gefunden")
     db.delete(obj)
     db.commit()
-    return {"message": "Deleted"}
+    log_protocol(db, request, action="structure.ebene.delete", ok=True, status_code=204, details={"ebene_id": ebene_id})
+    return {"message": "Gelöscht"}
 
 @router.delete("/tops/{top_id}")
-def delete_top(top_id: int, db: Session = Depends(get_db)):
+def delete_top(top_id: int, request: Request, db: Session = Depends(get_db)):
     obj = db.query(Top).get(top_id)
     if not obj:
-        raise HTTPException(status_code=404, detail="Top not found")
+        raise HTTPException(status_code=404, detail="Top nicht gefunden")
     db.delete(obj)
     db.commit()
-    return {"message": "Deleted"}
+    log_protocol(db, request, action="structure.top.delete", ok=True, status_code=204, details={"top_id": top_id})
+    return {"message": "Gelöscht"}
 
 @router.get("/tops/{top_id}")
 def get_top(top_id: int, db: Session = Depends(get_db)):
     top = db.query(Top).get(top_id)
     if not top:
-        raise HTTPException(status_code=404, detail="Top not found")
+        raise HTTPException(status_code=404, detail="Top nicht gefunden")
     return top
 
 @router.get("/ebenen/{ebene_id}")
 def get_ebene(ebene_id: int, db: Session = Depends(get_db)):
     ebene = db.query(Ebene).get(ebene_id)
     if not ebene:
-        raise HTTPException(status_code=404, detail="Ebene not found")
+        raise HTTPException(status_code=404, detail="Ebene nicht gefunden")
     return ebene
 
 @router.get("/stiegen/{stiege_id}")
 def get_stiege(stiege_id: int, db: Session = Depends(get_db)):
     stiege = db.query(Stiege).get(stiege_id)
     if not stiege:
-        raise HTTPException(status_code=404, detail="Stiege not found")
+        raise HTTPException(status_code=404, detail="Stiege nicht gefunden")
     return stiege
 
 @router.get("/bauteile/{bauteil_id}")
 def get_bauteil(bauteil_id: int, db: Session = Depends(get_db)):
     bauteil = db.query(Bauteil).get(bauteil_id)
     if not bauteil:
-        raise HTTPException(status_code=404, detail="Bauteil not found")
+        raise HTTPException(status_code=404, detail="Bauteil nicht gefunden")
     return bauteil

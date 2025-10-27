@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from fastapi import Request
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import select
@@ -15,6 +17,7 @@ from app.schemas.user import (
 from app.routes.auth import get_current_user
 from app.deps import require_admin
 from app.core.security import verify_password, hash_password
+from app.core.protocol import log_protocol
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 STATIC_DIR = BASE_DIR / "static"
@@ -32,9 +35,9 @@ def list_users(db: Session = Depends(get_db)):
 @router.post("", response_model=UserRead, status_code=201, dependencies=[Depends(require_admin)])
 def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db)):
     if data.role not in ROLES:
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise HTTPException(status_code=400, detail="Ungültige Rolle")
     if db.query(User).filter(User.email == data.email).first():
-        raise HTTPException(status_code=409, detail="Email already exists")
+        raise HTTPException(status_code=409, detail="Email existiert bereits")
 
     user = User(
         email=data.email,
@@ -46,29 +49,35 @@ def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db
         avatar_url=data.avatar_url,
     )
     db.add(user); db.commit(); db.refresh(user)
+    log_protocol(db, request, action="user.create", ok=True, status_code=201,
+                 details={"user_id": user.id, "email": user.email})
     return user
 
 @router.patch("/{user_id}", response_model=UserRead, dependencies=[Depends(require_admin)])
-def update_user(user_id: int, patch: UserUpdate, db: Session = Depends(get_db)):
+def update_user(user_id: int, patch: UserUpdate, request: Request, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User nicht gefunden")
 
     data = patch.model_dump(exclude_unset=True)
     if "role" in data and data["role"] and data["role"] not in ROLES:
-        raise HTTPException(status_code=400, detail="Invalid role")
+        raise HTTPException(status_code=400, detail="Ungültige Rolle")
 
     for k, v in data.items():
         setattr(user, k, v)
     db.commit(); db.refresh(user)
+    log_protocol(db, request, action="user.update", ok=True, status_code=200,
+                 details={"user_id": user.id, "changes": patch.model_dump(exclude_unset=True)})
     return user
 
 @router.delete("/{user_id}", status_code=204, dependencies=[Depends(require_admin)])
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User nicht gefunden")
     db.delete(user); db.commit()
+    log_protocol(db, request, action="user.delete", ok=True, status_code=204,
+                 details={"user_id": user.id, "email": user.email})
 
 # --- Avatar (admin ili vlasnik) --------------------------------------------
 
@@ -84,9 +93,9 @@ async def upload_avatar(
 
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User nicht gefunden")
     if not file.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="File must be an image")
+        raise HTTPException(status_code=400, detail="Datei muss ein Bild sein")
 
     ext = os.path.splitext(file.filename)[1] or ".jpg"
     fname = f"{uuid.uuid4().hex}{ext}"
@@ -96,6 +105,8 @@ async def upload_avatar(
 
     user.avatar_url = f"/static/uploads/{fname}"
     db.commit(); db.refresh(user)
+    log_protocol(db, request, action="user.avatar.upload", ok=True, status_code=200,
+                 details={"user_id": user.id, "avatar_url": user.avatar_url})
     return user
 
 # --- Passwords --------------------------------------------------------------
@@ -104,6 +115,7 @@ async def upload_avatar(
 def change_password(
     user_id: int,
     payload: PasswordChange,
+    request: Request,
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ):
@@ -113,7 +125,7 @@ def change_password(
 
     user = db.get(User, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="User nicht gefunden")
 
     # ako nije admin, mora potvrditi staru lozinku
     if current.role != "admin":
@@ -122,13 +134,17 @@ def change_password(
 
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
+    log_protocol(db, request, action="user.password.change", ok=True, status_code=204,
+                 details={"user_id": user.id})
     return  # 204
 
 @router.post("/{user_id}/password-reset", status_code=204, dependencies=[Depends(require_admin)])
-def reset_password(user_id: int, payload: PasswordReset, db: Session = Depends(get_db)):
+def reset_password(user_id: int, payload: PasswordReset, request: Request, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     user.hashed_password = hash_password(payload.new_password)
     db.commit()
+    log_protocol(db, request, action="user.password.reset", ok=True, status_code=204,
+                 details={"user_id": user.id})
     return  # 204

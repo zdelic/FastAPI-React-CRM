@@ -119,15 +119,23 @@
 
 /* ====== Timeline header: proširi red i ukloni clipping ====== */
 
-/* dopusti da header može biti viši i da se sadržaj vidi */
-.fc .fc-scrollgrid-section-header,
-.fc .fc-scrollgrid-section-header .fc-scroller,
-.fc .fc-col-header,
-.fc .fc-timeline-header {
-  overflow: visible !important;
+/* dopusti viši header, ali zadrži sinkronizirani horizontalni scroll */
+.fc .fc-scrollgrid-section-header {
+  overflow: hidden;
+  /* header kontejner ne kliže sam */
   height: auto !important;
 }
 
+.fc .fc-scrollgrid-section-header .fc-scroller {
+  overflow: hidden !important;
+  /* MORA ostati hidden/auto, nikako visible */
+}
+
+/* ostalo može ostati vidljivo ako želiš tooltipe / dvoredne naslove */
+.fc .fc-col-header,
+.fc .fc-timeline-header {
+  overflow: visible !important;
+}
 /* povećaj visinu reda i ćelija zaglavlja */
 .fc .fc-timeline-header-row,
 .fc .fc-col-header-cell {

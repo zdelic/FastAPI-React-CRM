@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import CustomDatePicker from "./CustomDatePicker";
 
 interface DateFilterProps {
   startDate: string;
@@ -80,25 +81,28 @@ const DateFilter: React.FC<DateFilterProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 mb-4 text-sm">
+    <div className="relative z-10 flex flex-col gap-3 mb-4 text-sm">
       <div className="flex gap-4 items-center text-sm">
         <label className="text-sm text-gray-700">
           Start:
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="ml-2 border px-2 py-1 rounded"
-          />
+          <div className="dp-light inline-block ml-2">
+            <CustomDatePicker
+              value={startDate || null}
+              disabled={false}
+              onChange={(v) => setStartDate(v ?? "")}
+            />
+          </div>
         </label>
+
         <label className="text-sm text-gray-700">
           Ende:
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="ml-2 border px-2 py-1 rounded"
-          />
+          <div className="dp-light inline-block ml-2">
+            <CustomDatePicker
+              value={endDate || null}
+              disabled={false}
+              onChange={(v) => setEndDate(v ?? "")}
+            />
+          </div>
         </label>
 
         <button

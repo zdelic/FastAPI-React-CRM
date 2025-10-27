@@ -15,3 +15,78 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+[draggable="true"] { transition: box-shadow .12s ease; }
+[draggable="true"]:hover { box-shadow: 0 0 0 2px rgba(0,0,0,.15) inset; }
+
+/* Popover kalendara – tamno, ali mekano */
+.dp-eu.react-datepicker {
+  background: #0b1220;
+  /* tamno, ali ne crna */
+  color: #e5e7eb;
+  /* slate-200 */
+  border: 1px solid #1f2a44;
+  /* rub diskretan */
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.dp-eu .react-datepicker__header {
+  background: #0f172a;
+  /* slate-900 */
+  border-bottom: 1px solid #1f2a44;
+}
+
+.dp-eu .react-datepicker__current-month,
+.dp-eu .react-datepicker-year-header {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+.dp-eu .react-datepicker__day-name {
+  color: #94a3b8;
+  /* slate-400 */
+  font-weight: 600;
+}
+
+/* Dani */
+.dp-eu .react-datepicker__day {
+  color: #e5e7eb;
+  border-radius: 8px;
+}
+
+.dp-eu .react-datepicker__day:hover {
+  background: rgba(148, 163, 184, 0.22);
+  /* slate-400 @22% */
+}
+
+/* Danas */
+.dp-eu .react-datepicker__day--today {
+  outline: 2px solid #38bdf8;
+  /* cyan-400 */
+  outline-offset: -2px;
+}
+
+/* Selektovano */
+.dp-eu .react-datepicker__day--selected,
+.dp-eu .react-datepicker__day--keyboard-selected {
+  background: #fbbe2400;
+  /* amber-400 */
+  color: #d6dae3;
+  /* skoro crna */
+}
+
+/* Vikendi – nježno */
+.react-datepicker__day--weekend {
+  background-color: rgba(240, 72, 100, 0.435);
+  /* rose-500 @14% */
+  color: #fecaca;
+  /* rose-200 */
+}
+
+/* Praznici – jače ali ne “svjetleće” */
+.react-datepicker__day--holiday {
+  background-color: rgba(239, 92, 92, 0.955);
+  /* red-600 @28% */
+  color: #fff;
+  font-weight: 700;
+}

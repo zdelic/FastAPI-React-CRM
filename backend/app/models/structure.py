@@ -7,9 +7,9 @@ class Bauteil(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"))
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     process_model_id = Column(Integer, ForeignKey("process_models.id"), nullable=True)
-
+    project = relationship("Project", back_populates="bauteile")
 
     stiegen = relationship(
         "Stiege",
@@ -24,7 +24,7 @@ class Stiege(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    bauteil_id = Column(Integer, ForeignKey("bauteile.id", ondelete="CASCADE"))
+    bauteil_id = Column(Integer, ForeignKey("bauteile.id", ondelete="CASCADE"), nullable=False)
     process_model_id = Column(Integer, ForeignKey("process_models.id"), nullable=True)
 
 
@@ -42,7 +42,7 @@ class Ebene(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    stiege_id = Column(Integer, ForeignKey("stiegen.id", ondelete="CASCADE"))
+    stiege_id = Column(Integer, ForeignKey("stiegen.id", ondelete="CASCADE"), nullable=False)
     process_model_id = Column(Integer, ForeignKey("process_models.id"), nullable=True)
 
 
@@ -60,7 +60,7 @@ class Top(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    ebene_id = Column(Integer, ForeignKey("ebenen.id", ondelete="CASCADE"))
+    ebene_id = Column(Integer, ForeignKey("ebenen.id", ondelete="CASCADE"), nullable=False)
     process_model_id = Column(Integer, ForeignKey("process_models.id"), nullable=True)
 
 

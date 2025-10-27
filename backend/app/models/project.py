@@ -11,7 +11,13 @@ class Project(Base):
     name = Column(String, index=True)
     description = Column(String)
     start_date = Column(Date, nullable=True)
+    image_url = Column(String, nullable=True)
 
     
     users = relationship("User", secondary=user_project, back_populates="projects")
-    bauteile = relationship("Bauteil", backref="project", cascade="all, delete", passive_deletes=True)
+    bauteile = relationship(
+        "Bauteil",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

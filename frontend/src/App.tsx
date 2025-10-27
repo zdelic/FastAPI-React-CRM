@@ -8,6 +8,7 @@ import TaskCalendar from "./pages/TaskCalendar";
 import UsersPage from "./pages/UsersPage";
 import PrivateRoute from "./routes/PrivateRoute";
 import AdminRoute from "./routes/AdminRoute";
+import AuditLogViewer from "./pages/AuditLogViewer";
 
 import { useEffect } from "react";
 import { LoadingProvider, useLoading } from "./context/LoadingContext";
@@ -93,7 +94,7 @@ function AppRoutes() {
           </AdminRoute>
         }
       />
-      
+     <Route path="/audit" element={<AuditLogViewer />} /> 
     </Routes>
   );
 }

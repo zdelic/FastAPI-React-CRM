@@ -1,30 +1,53 @@
 # app/routes/project.py
-from typing import List
+from typing import List, Dict, Any  
+import os, shutil, uuid
+from datetime import date
+from pathlib import Path
 
-from fastapi import Request
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request, Form
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func, or_, and_, case, literal
 
+from app.database import get_db
 from app.routes.auth import get_current_user
 from app.deps import require_admin
-from app.database import get_db
-from app.crud import project as crud_project, user
-from app.models.task import Task as TaskModel
+from app.core.protocol import log_protocol
+from app.main import UPLOAD_DIR
 
 from app.models.project import Project as ProjectModel
 from app.models.user import User as UserModel
+from app.models.task import Task as TaskModel
+from app.models.process import ProcessStep as ProcessStepModel
+from app.models.gewerk import Gewerk as GewerkModel
 
 from app.schemas.project import (
     ProjectCreate,
     ProjectUpdate,
-    Project as ProjectRead,   # Pydantic "read" shema
+    ProjectRead,      
     UserAssign,
 )
+
+
 from app.schemas.user import UserRead
 from app.schemas.project_user import ProjectUserAdd, ProjectUsersReplace
 
+# koristi prefix SAMO ovdje (nema dupliranja "projects/projects")
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+# koristi ISTI UPLOAD_DIR kao u main.py
+from app.main import UPLOAD_DIR
+
+
+# --- helper: pretvori ORM u dict s fiksnim poljima__________________________
+def project_to_dict(p):
+    return {
+        "id": p.id,
+        "name": p.name,
+        "description": p.description,
+        "start_date": p.start_date,
+        "image_url": getattr(p, "image_url", None),  # 👈 garantiramo ključ
+    }
+
 
 # --- Projekti ---------------------------------------------------------------
 
@@ -32,46 +55,80 @@ router = APIRouter(prefix="/projects", tags=["projects"])
     "",
     response_model=ProjectRead,
     dependencies=[Depends(require_admin)],
+    status_code=201,
 )
 def create_project(
-    project: ProjectCreate,
     request: Request,
+    name: str = Form(...),
+    description: str | None = Form(None),
+    start_date: date | None = Form(None),
+    image: UploadFile | None = File(None),
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    new_proj = crud_project.create_project(db, project, current_user)
-    return new_proj
+    proj = ProjectModel(
+        name=name,
+        description=description,
+        start_date=start_date,
+        image_url=None,
+    )
+    db.add(proj)
+    db.commit()
+    db.refresh(proj)
+
+    # ako je stigla slika – snimi je i upiši apsolutni javni URL
+    if image and image.filename:
+        ext = Path(image.filename).suffix.lower() or ".png"
+        if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+            raise HTTPException(400, detail="Ungültiger Bildtyp")
+
+        fname = f"project_{proj.id}_{uuid.uuid4().hex}{ext}"
+        dest = Path(UPLOAD_DIR) / fname
+        with dest.open("wb") as out:
+            shutil.copyfileobj(image.file, out)
+
+        proj.image_url = str(request.url_for("uploads", path=fname))
+        db.commit()
+        db.refresh(proj)
+
+    return proj
 
 
-@router.get("", response_model=List[ProjectRead])
+@router.get("", response_model=List[ProjectRead], response_model_exclude_none=False, response_model_exclude_unset=False)
 def list_projects(
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    # SUB: projekti na kojima je član ∪ projekti gdje ima bar jedan task (tasks.sub_id == current_user.id)
+    # ✅ Admin vidi SVE projekte
+    if current_user.role in ("admin", "Admin", "ADMIN"):
+        rows = db.query(ProjectModel).all()
+        return [ProjectRead.model_validate(r, from_attributes=True) for r in rows]
+
     if current_user.role == "sub":
-        # projekti iz taskova
         q_tasks = (
             db.query(ProjectModel)
             .join(TaskModel, TaskModel.project_id == ProjectModel.id)
             .filter(TaskModel.sub_id == current_user.id)
         )
-
-        # projekti iz eksplicitnog članstva
         q_membership = (
             db.query(ProjectModel)
-            .join(ProjectModel.users)  # many-to-many relacija Project.users
+            .join(ProjectModel.users)
             .filter(UserModel.id == current_user.id)
         )
+        rows = q_tasks.union(q_membership).distinct().all()
+        return [ProjectRead.model_validate(r, from_attributes=True) for r in rows]  # ⬅️
 
-        projects = q_tasks.union(q_membership).distinct().all()
-        return projects
+    rows = (
+        db.query(ProjectModel)
+        .join(ProjectModel.users)
+        .filter(UserModel.id == current_user.id)
+        .all()
+    )
+    return [ProjectRead.model_validate(r, from_attributes=True) for r in rows]
 
-    # ostale uloge: postojeća logika (projekti gdje je korisnik član)
-    return crud_project.get_user_projects(db, current_user.id)
 
 
-@router.get("/{project_id}", response_model=ProjectRead)
+@router.get("/{project_id}", response_model=ProjectRead, response_model_exclude_none=False, response_model_exclude_unset=False)
 def get_project(
     project_id: int,
     db: Session = Depends(get_db),
@@ -81,7 +138,6 @@ def get_project(
     if not project:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
-    # SUB može otvoriti samo ako je član projekta ili ima bar jedan task u njemu
     if current_user.role == "sub":
         is_member = any(u.id == current_user.id for u in project.users)
         has_tasks = (
@@ -93,40 +149,44 @@ def get_project(
         if not (is_member or has_tasks):
             raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Projekt")
 
-    return project
+    return ProjectRead.model_validate(project, from_attributes=True)
 
 
 @router.put("/{project_id}", response_model=ProjectRead, dependencies=[Depends(require_admin)])
-def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(
+    project_id: int,
+    payload: ProjectUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     db_project = db.get(ProjectModel, project_id)
     if not db_project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
-    if payload.start_date is not None:
-        db_project.start_date = payload.start_date
+    # ažuriraj sve polja koja su poslana
+    data = payload.model_dump(exclude_unset=True)
+    if "name" in data:
+        db_project.name = data["name"]
+    if "description" in data:
+        db_project.description = data["description"]
+    if "start_date" in data:
+        db_project.start_date = data["start_date"]
+    if "image_url" in data:
+        db_project.image_url = data["image_url"]
 
     db.commit()
     db.refresh(db_project)
+
+    log_protocol(
+        db, request,
+        action="project.update", ok=True, status_code=200,
+        details={"project_id": project_id, "changes": data},
+    )
     return db_project
 
-# (opcionalno) dodavanje korisnika po emailu – zahtijeva admina
-@router.post("/{project_id}/add-user")
-def add_user_to_project_by_email(
-    project_id: int,
-    data: UserAssign,
-    db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_user),
-):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Zabranjeno")
-    result = crud_project.add_user_to_project(db, project_id, data.email)
-    if not result:
-        raise HTTPException(status_code=404, detail="Projekt ili korisnik nije pronađen")
-    return {"message": f"Korisnik {data.email} dodat u projekat."}
 
 # --- Veze projekat ↔ korisnici ---------------------------------------------
 
-# GET lista članova projekta (nedostajalo ranije)
 @router.get("/{project_id}/users", response_model=List[UserRead])
 def list_project_users(
     project_id: int,
@@ -135,9 +195,8 @@ def list_project_users(
 ):
     project = db.get(ProjectModel, project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
-    # SUB vidi samo ako je član ili ima bar jedan task u projektu
     if current_user.role == "sub":
         is_member = any(u.id == current_user.id for u in project.users)
         has_tasks = (
@@ -152,12 +211,7 @@ def list_project_users(
     return project.users
 
 
-@router.post(
-    "/{project_id}/users",
-    dependencies=[Depends(require_admin)],
-    response_model=UserRead,
-    status_code=201,
-)
+@router.post("/{project_id}/users", response_model=UserRead, status_code=201, dependencies=[Depends(require_admin)])
 def add_user_to_project(
     project_id: int,
     request: Request,
@@ -166,56 +220,51 @@ def add_user_to_project(
 ):
     project = db.get(ProjectModel, project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
     user = db.get(UserModel, payload.user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
 
     if any(u.id == user.id for u in project.users):
-        raise HTTPException(status_code=409, detail="User already in project")
+        raise HTTPException(status_code=409, detail="Benutzer bereits im Projekt")
 
     project.users.append(user)
     db.commit()
     db.refresh(project)
-
+    log_protocol(db, request, action="project.user.add", ok=True, status_code=201,
+                 details={"project_id": project_id, "user_id": user.id})
     return user
 
 
-@router.delete(
-    "/{project_id}/users/{user_id}",
-    dependencies=[Depends(require_admin)],
-    status_code=204
-)
+@router.delete("/{project_id}/users/{user_id}", status_code=204, dependencies=[Depends(require_admin)])
 def remove_user_from_project(
     project_id: int,
     request: Request,
     user_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     project = db.get(ProjectModel, project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
     project.users = [u for u in project.users if u.id != user_id]
     db.commit()
-
+    log_protocol(db, request, action="project.user.remove", ok=True, status_code=204,
+                 details={"project_id": project_id, "user_id": user_id})
     return
 
 
-@router.put(
-    "/{project_id}/users",
-    dependencies=[Depends(require_admin)],
-    response_model=List[UserRead]
-)
+@router.put("/{project_id}/users", response_model=List[UserRead], dependencies=[Depends(require_admin)])
 def replace_project_users(
     project_id: int,
     payload: ProjectUsersReplace,
-    db: Session = Depends(get_db)
+    request: Request,
+    db: Session = Depends(get_db),
 ):
     project = db.get(ProjectModel, project_id)
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
     users = db.execute(
         select(UserModel).where(UserModel.id.in_(payload.user_ids))
@@ -224,4 +273,133 @@ def replace_project_users(
     project.users = users
     db.commit()
     db.refresh(project)
+    log_protocol(db, request, action="project.users.replace", ok=True, status_code=200,
+                 details={"project_id": project_id, "user_ids": payload.user_ids})
     return project.users
+
+
+
+
+@router.get("/{project_id}/stats", response_model=Dict[str, Any])
+def project_stats(
+    request: Request,
+    project_id: int,
+    until: date | None = None,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_user),
+) -> Dict[str, Any]:
+    # 1) validacija pristupa (isti pattern kao u get_project)
+    project = db.get(ProjectModel, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
+
+    if current_user.role == "sub":
+        is_member = any(u.id == current_user.id for u in project.users)
+        has_tasks = (
+            db.query(TaskModel)
+            .filter(TaskModel.project_id == project_id, TaskModel.sub_id == current_user.id)
+            .first()
+            is not None
+        )
+        if not (is_member or has_tasks):
+            raise HTTPException(status_code=403, detail="Kein Zugriff auf dieses Projekt")
+
+    # 2) minimalna statistika (sigurna i brza)
+    total_tasks = db.query(TaskModel).filter(TaskModel.project_id == project_id).count()
+    # ako nemaš status kolonu, ovo će i dalje raditi (done_count = 0)
+    done_count = db.query(TaskModel).filter(
+        TaskModel.project_id == project_id,
+        getattr(TaskModel, "status", None) == "done"  # fallback: ako nema status-a, bude None == "done" -> False
+    ).count() if hasattr(TaskModel, "status") else 0
+
+    open_count = max(total_tasks - done_count, 0)
+
+    in_progress_count = max(total_tasks - done_count - open_count, 0)
+
+    return {
+        "project_id": project_id,
+        "until": str(until) if until else None,
+
+        # stari ključevi (koje tvoj frontend trenutno koristi)
+        "tasks_total": total_tasks,
+        "tasks_done": done_count,
+        "tasks_open": open_count,
+
+        # novi/“friendly” ključevi koje očekuje komponenta
+        "total": total_tasks,
+        "done": done_count,
+        "in_progress": in_progress_count,
+        "offen": open_count,
+        "percent_done": (round((done_count / total_tasks) * 10000) / 100) if total_tasks else 0,
+
+        # IMPORTANT: prazne liste da .map ne puca na frontendu
+        "by_gewerk": [],
+    }
+
+
+# --- na vrh file-a već imaš: uuid, shutil, Path, UPLOAD_DIR, require_admin, get_current_user ...
+
+@router.delete("/{project_id}", status_code=204, dependencies=[Depends(require_admin)])
+def delete_project(
+    project_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    project = db.get(ProjectModel, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
+
+    # (opcionalno) obriši i file s diska ako ima image_url koji pokazuje na naš UPLOAD_DIR
+    try:
+        if project.image_url:
+            # izvući ime datoteke ako je u /uploads/...
+            fname = project.image_url.split("/")[-1]
+            fpath = Path(UPLOAD_DIR) / fname
+            if fpath.exists():
+                fpath.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    db.delete(project)
+    db.commit()
+    log_protocol(db, request, action="project.delete", ok=True, status_code=204,
+                 details={"project_id": project_id})
+    return
+
+
+@router.post("/{project_id}/image", response_model=ProjectRead, dependencies=[Depends(require_admin)])
+async def upload_project_image(
+    project_id: int,
+    request: Request,
+    image: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    proj = db.get(ProjectModel, project_id)
+    if not proj:
+        raise HTTPException(404, "Projekt nicht gefunden")
+
+    ext = Path(image.filename).suffix.lower() or ".png"
+    if ext not in {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+        raise HTTPException(400, "Ungültiger Bildtyp")
+
+    # (opcionalno) obriši staru sliku
+    try:
+        if proj.image_url:
+            old = Path(UPLOAD_DIR) / proj.image_url.split("/")[-1]
+            if old.exists():
+                old.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+    fname = f"project_{proj.id}_{uuid.uuid4().hex}{ext}"
+    dest = Path(UPLOAD_DIR) / fname
+    with dest.open("wb") as out:
+        shutil.copyfileobj(image.file, out)
+
+    proj.image_url = str(request.url_for("uploads", path=fname))
+    db.commit()
+    db.refresh(proj)
+    return proj
+
+
+

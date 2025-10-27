@@ -1,7 +1,11 @@
+// src/components/ProcessModelDropdown.tsx
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 
-interface ProcessModel { id: number; name: string; }
+interface ProcessModel {
+  id: number;
+  name: string;
+}
 
 interface Props {
   itemId: number;
@@ -18,13 +22,18 @@ interface Props {
 
   // Ako je true => PREVIEW; ako false/undefined => IMMEDIATE
   deferCommit?: boolean;
+
+  // 🆕 floating label i širina/wrap
+  label?: string;
+  widthClass?: string; // npr. "w-[220px]" ili "w-full"
+  className?: string; // dodatne klase za <select>
 }
 
 const typeToPath: Record<Props["type"], string> = {
-  bauteil: "bauteile",        // prilagodi ako je /bauteile
-  stiege:  "stiegen",
-  ebene:   "ebenen",
-  top:     "tops",
+  bauteil: "bauteile",
+  stiege: "stiegen",
+  ebene: "ebenen",
+  top: "tops",
 };
 
 const ProcessModelDropdown: React.FC<Props> = ({
@@ -33,9 +42,12 @@ const ProcessModelDropdown: React.FC<Props> = ({
   selectedId,
   selectedName,
   disabled = false,
-  onUpdated,    // IMMEDIATE
-  onSelect,     // PREVIEW
+  onUpdated,
+  onSelect,
   deferCommit = false,
+  label, // 🆕
+  widthClass = "w-[220px]", // 🆕
+  className = "", // 🆕
 }) => {
   const [models, setModels] = useState<ProcessModel[]>([]);
   const [selected, setSelected] = useState<number | null>(selectedId ?? null);
@@ -47,7 +59,8 @@ const ProcessModelDropdown: React.FC<Props> = ({
       try {
         const res = await api.get("/process-models");
         const list = (res.data ?? []).map((m: any) => ({
-          id: Number(m.id), name: String(m.name ?? "")
+          id: Number(m.id),
+          name: String(m.name ?? ""),
         }));
         setModels(list);
       } catch (err) {
@@ -56,16 +69,33 @@ const ProcessModelDropdown: React.FC<Props> = ({
     })();
   }, []);
 
+  // prikaz labele (isti stil kao kod datepickera)
+  const LabelEl = label ? (
+    <span className="pointer-events-none absolute left-3 top-1 text-[10px] leading-none tracking-wide text-slate-400 z-10">
+      {label}
+    </span>
+  ) : null;
+
   // READ ONLY
   if (disabled) {
-    const label = selectedName
-      ?? models.find(m => m.id === Number(selected))?.name
-      ?? "—";
-    return (
-      <div className="inline-flex items-center rounded-md bg-slate-800/70 px-3 py-1.5 text-sm text-slate-200 border border-slate-600" aria-disabled="true">
-        {label}
-      </div>
-    );
+    const readLabel =
+      selectedName ??
+      models.find((m) => m.id === Number(selected))?.name ??
+      "—";
+
+      return (
+        <div className={`relative inline-block ${widthClass}`}>
+          {LabelEl}
+          <div
+            className="inline-flex w-full items-center rounded-md bg-slate-800/70 px-3 pr-9 py-1.5 text-sm text-slate-200 border border-slate-600 pt-5"
+            aria-disabled="true"
+            style={{ minHeight: 32 }}
+          >
+            {readLabel}
+          </div>
+        </div>
+      );
+      
   }
 
   // EDIT
@@ -74,20 +104,17 @@ const ProcessModelDropdown: React.FC<Props> = ({
     const newId = raw === "" ? null : Number(raw);
     setSelected(newId);
 
-    // PREVIEW (deferred commit): samo javi roditelju
     if (deferCommit) {
       onSelect?.(newId);
       return;
     }
 
-    // IMMEDIATE (stari način): odmah piši u DB pa refetchaj
     try {
       const collection = typeToPath[type];
-      // Ako server traži full-update s name:
       const res = await api.get(`/${collection}/${itemId}`);
       const name = res.data?.name ?? "";
       await api.put(`/${collection}/${itemId}`, {
-        name,                 // ukloni ako backend prima partial
+        name,
         process_model_id: newId,
       });
       await onUpdated?.();
@@ -97,17 +124,29 @@ const ProcessModelDropdown: React.FC<Props> = ({
   };
 
   return (
-    <select
-      value={selected === null ? "" : String(selected)}
-      onChange={handleChange}
-      className="rounded-md bg-slate-800 text-slate-100 px-3 py-1.5 text-sm border border-slate-600 hover:border-slate-500"
-    >
-      <option value="">-- PM wählen --</option>
-      {models.map(m => (
-        <option key={m.id} value={String(m.id)}>{m.name}</option>
-      ))}
-    </select>
+    <div className={`relative inline-block ${widthClass}`}>
+      {LabelEl}
+      <select
+        value={selected === null ? "" : String(selected)}
+        onChange={handleChange}
+        className={
+          "w-full rounded-md bg-slate-800/60 text-slate-100 px-3 pr-9 text-sm " +
+          "border border-slate-600 hover:border-slate-500 " +
+          "pt-5 pb-1.5" + // 👈 prostor za “floating” label UNUTRA
+          (className ? " " + className : "")
+        }
+        style={{ minHeight: 30 }}
+      >
+        <option value="">-- PM wählen --</option>
+        {models.map((m) => (
+          <option key={m.id} value={String(m.id)}>
+            {m.name}
+          </option>
+        ))}
+      </select>
+    </div>
   );
+  
 };
 
 export default ProcessModelDropdown;
