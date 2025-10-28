@@ -257,7 +257,11 @@ const ProcessModelEditor = () => {
                 <select
                   value={step.gewerk_id}
                   onChange={(e) =>
-                    handleStepChange(index, "gewerk_id", parseInt(e.target.value))
+                    handleStepChange(
+                      index,
+                      "gewerk_id",
+                      parseInt(e.target.value)
+                    )
                   }
                   className="w-full p-2 border rounded"
                 >
@@ -274,20 +278,38 @@ const ProcessModelEditor = () => {
                 <label className="block text-m text-inherit font-bold drop-shadow-[0_0_2px_white]">
                   Aktivität
                 </label>
-                <select
-                  value={step.activity}
-                  onChange={(e) =>
-                    handleStepChange(index, "activity", e.target.value)
-                  }
-                  className="w-full p-2 border rounded"
-                >
-                  <option value="">-- wählen --</option>
-                  {(aktivitaetenMap[step._key] || []).map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+                {(() => {
+                  const list = aktivitaetenMap[step._key] || [];
+                  const hasMatch = !!list.find(
+                    (a) =>
+                      (a.name || "").trim() === (step.activity || "").trim()
+                  );
+
+                  return (
+                    <select
+                      value={step.activity}
+                      onChange={(e) =>
+                        handleStepChange(index, "activity", e.target.value)
+                      }
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">-- wählen --</option>
+
+                      {/* Fallback: ako spremljena aktivnost nema match u opcijama (još), dodaj je privremeno */}
+                      {step.activity && !hasMatch && (
+                        <option value={step.activity}>
+                          {step.activity} {/* (bestehend) */}
+                        </option>
+                      )}
+
+                      {list.map((a) => (
+                        <option key={a.id} value={(a.name || "").trim()}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
               </div>
             </div>
 

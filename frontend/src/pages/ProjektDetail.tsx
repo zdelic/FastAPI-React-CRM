@@ -70,12 +70,14 @@ const ProjektDetail = () => {
   const loadStructure = async () => {
     if (!id) return;
     try {
-      const data = await fetchStructure(Number(id));
+      const data = await fetchStructure(Number(id), { hideLoader: true });
       setBauteile(data);
       
       if (data.length > 0 && data[0].project_id) {
         try {
-          const res = await api.get(`/projects/${data[0].project_id}`);
+          const res = await api.get(`/projects/${data[0].project_id}`, {
+            hideLoader: true,
+          });
           setStartDate(res.data.start_date);
           setProjectName(res.data.name);
 
@@ -102,7 +104,10 @@ const ProjektDetail = () => {
   useEffect(() => {
   const checkTasks = async () => {
     try {
-      const res = await api.get(`/projects/${id}/has-tasks`);
+      const res = await api.get(`/projects/${id}/has-tasks`, {
+        hideLoader: true,
+      });
+
       setHasTasks(res.data); // true ili false
     } catch (err) {
       console.error("Greška pri proveri taskova:", err);
@@ -116,7 +121,12 @@ const ProjektDetail = () => {
   const addBauteil = async () => {
     if (!newBauteil || !id) return;
     try {
-      await api.post(`/projects/${id}/bauteil`, { name: newBauteil });
+      await api.post(
+        `/projects/${id}/bauteil`,
+        { name: newBauteil },
+        { hideLoader: true }
+      );
+
       setNewBauteil("");
       loadStructure();
     } catch (err) {
@@ -134,7 +144,12 @@ const ProjektDetail = () => {
     const name = newStiegen[bauteilId];
     if (!name) return;
     try {
-      await api.post("/stiegen", { name, bauteil_id: bauteilId });
+      await api.post(
+        "/stiegen",
+        { name, bauteil_id: bauteilId },
+        { hideLoader: true }
+      );
+
       setNewStiegen((prev) => ({ ...prev, [bauteilId]: "" }));
       loadStructure();
     } catch (err) {
@@ -146,7 +161,12 @@ const addEbene = async (stiegeId: number) => {
   const name = newEbenen[stiegeId];
   if (!name) return;
   try {
-    await api.post("/ebenen", { name, stiege_id: stiegeId });
+    await api.post(
+      "/ebenen",
+      { name, stiege_id: stiegeId },
+      { hideLoader: true }
+    );
+
     setNewEbenen((prev) => ({ ...prev, [stiegeId]: "" }));
     loadStructure();
   } catch (err) {
@@ -158,7 +178,7 @@ const addTop = async (ebeneId: number) => {
   const name = newTops[ebeneId];
   if (!name) return;
   try {
-    await api.post("/tops", { name, ebene_id: ebeneId });
+    await api.post("/tops", { name, ebene_id: ebeneId }, { hideLoader: true });
     setNewTops((prev) => ({ ...prev, [ebeneId]: "" }));
     loadStructure();
   } catch (err) {
@@ -190,7 +210,8 @@ const saveEdit = async (type: EntityType, id: number) => {
   if (!path) return;
 
   try {
-    await api.put(`/${path}/${id}`, { name });
+    await api.put(`/${path}/${id}`, { name }, { hideLoader: true });
+
     setEditingNames((prev) => {
       const copy = { ...prev };
       delete copy[`${type}-${id}`];
@@ -207,7 +228,7 @@ const deleteItem = async (type: EntityType, id: number) => {
   if (!path) return;
 
   try {
-    await api.delete(`/${path}/${id}`);
+    await api.delete(`/${path}/${id}`, { hideLoader: true });
     loadStructure();
   } catch (err) {
     console.error(`Fehler beim Löschen von ${type}:`, err);
@@ -217,7 +238,11 @@ const deleteItem = async (type: EntityType, id: number) => {
 
 const handleSyncTasks = async () => {
   try {
-    await api.post(`/projects/${id}/sync-tasks`);
+    await api.post(`/projects/${id}/sync-tasks`, undefined, {
+      hideLoader: true,
+    });
+    // ili: await api.post(`/projects/${id}/sync-tasks`, {}, { hideLoader: true });
+
     alert("Aufgaben werden synchronisiert.");
     // Po želji: reloaduj podatke ili redirectuj
   } catch (err) {
@@ -231,7 +256,10 @@ const [stats, setStats] = useState<any | null>(null);
 useEffect(() => {
   const fetchStats = async () => {
     try {
-      const res = await api.get(`/projects/${id}/task-stats`);
+      const res = await api.get(`/projects/${id}/task-stats`, {
+        hideLoader: true,
+      });
+
       setStats(res.data);
     } catch (err) {
       console.error("Fehler beim Laden der Statistik:", err);

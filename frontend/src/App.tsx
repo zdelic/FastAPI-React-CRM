@@ -103,10 +103,10 @@ export default function App() {
   return (
     <LoadingProvider>
       <Router>
-        <LoaderBridgeHook />
+        {/* <LoaderBridgeHook /> */}
         <AppRoutes />
         {/* Overlay na dnu da bude uvijek iznad svega */}
-        <LoadingOverlay />
+        {/* <LoadingOverlay /> */}
       </Router>
     </LoadingProvider>
   );

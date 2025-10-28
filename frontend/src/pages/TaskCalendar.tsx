@@ -386,6 +386,45 @@ const TaskCalendar = () => {
         });
       }
 
+      // --- STRUCTURE FILTER (client-side fallback) ---
+      const by = <T,>(arr: T[], pred: (x: T) => boolean) =>
+        arr.length ? pred : () => true;
+
+      // normalizacije
+      const n = (v: any) => (v == null ? null : Number(v));
+      const s = (v: any) => (v == null ? "" : String(v));
+
+      // Ako backend preskoči filtere, ovdje ih primijeni lokalno
+      const matchTop = by(selectedTopIds, (t: any) =>
+        selectedTopIds.includes(n(t.top_id) ?? -1)
+      );
+      const matchEbene = by(selectedEbenen, (t: any) =>
+        selectedEbenen.includes(s(t.ebene))
+      );
+      const matchStiege = by(selectedStiegen, (t: any) =>
+        selectedStiegen.includes(s(t.stiege))
+      );
+      const matchBauteil = by(selectedBauteile, (t: any) =>
+        selectedBauteile.includes(s(t.bauteil))
+      );
+      const matchAct = by(selectedActivities, (t: any) =>
+        selectedActivities.includes(s(t.task))
+      );
+      const matchPM = by(selectedProcessModels, (t: any) =>
+        selectedProcessModels.includes(s(t.process_model))
+      );
+
+      const dataDisplay = (data || []).filter(
+        (t: any) =>
+          matchTop(t) &&
+          matchEbene(t) &&
+          matchStiege(t) &&
+          matchBauteil(t) &&
+          matchAct(t) &&
+          matchPM(t)
+      );
+      // ------------------------------------------------
+
       // Ovdje samo ažuriraj stanja koja su potrebna za filtere
       const allPMValues = Array.from(
         new Set<string>(
@@ -427,12 +466,12 @@ const TaskCalendar = () => {
       // NOVO: jedinstveni top_id kao ključ reda
       const uniqueTopIds = Array.from(
         new Set<number>(
-          data.map((t: any) => t.top_id).filter((v: any) => v != null)
+          dataDisplay.map((t: any) => t.top_id).filter((v: any) => v != null)
         )
       );
 
       const resList = uniqueTopIds.map((topId) => {
-        const row = data.find((t: any) => t.top_id === topId);
+        const row = dataDisplay.find((t: any) => t.top_id === topId);
 
         const label = row?.top ?? `Top#${topId}`;
 
@@ -451,7 +490,7 @@ const TaskCalendar = () => {
       });
 
       // EVENTS
-      const eventList = data
+      const eventList = dataDisplay
         .map((task: any) => {
           if (!task.id) return null;
           const isDone = !!task.end_ist;

@@ -92,12 +92,7 @@ export async function addUserToProject(
   const added = list.find((u) => u.id === userId);
   if (!added) {
     // fallback – minimalni objekt, da ne padne UI (prilagodi po potrebi)
-    return {
-      id: userId,
-      name: "Unbekannt",
-      email: "",
-      role: "sub", // ⬅️ umjesto "member"
-    } as User;
+    return { id: userId, name: "Unbekannt", email: "", role: "sub" } as User;
   }
   return added;
 }
