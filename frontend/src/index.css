@@ -90,3 +90,21 @@ code {
   color: #fff;
   font-weight: 700;
 }
+
+/* pomakni clear (×) ikonu gore desno */
+.react-datepicker__close-icon {
+  position: absolute !important;
+  top: -18px !important;
+  right: -9px !important;
+  transform: none !important;
+  z-index: 5;
+}
+
+/* malo uredi izgled same × ikonice */
+.react-datepicker__close-icon::after {
+  background-color: transparent !important;
+  color: #60a5fa !important;
+  /* svijetlo plava */
+  font-size: 16px !important;
+  font-weight: bold;
+}

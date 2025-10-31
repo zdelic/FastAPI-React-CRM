@@ -282,39 +282,43 @@ useEffect(() => setActiveTab(asTab(searchParams.get("tab"))), [searchParams]);
 
 return (
   <div className="p-6 space-y-6">
-    
-    <div className="h-24 md:h-30 bg-cover bg-center" style={{ backgroundImage: "url('/images/Startseite-OfficePark-2_01.png')" }}>
-        <div className="h-full w-full bg-black bg-opacity-40 flex items-center justify-between px-6">
-          <h1 className="text-white text-3xl md:text-3xl font-bold drop-shadow">
-            🏢 Projekt-Dashboard: {projectName}
-          </h1>
+    <div
+      className="h-24 md:h-30 bg-cover bg-center"
+      style={{
+        backgroundImage: "url('/images/Startseite-OfficePark-2_01.png')",
+      }}
+    >
+      <div className="h-full w-full bg-black bg-opacity-40 flex items-center justify-between px-6">
+        <h1 className="text-white text-3xl md:text-3xl font-bold drop-shadow">
+          🏢 Projekt-Dashboard: {projectName}{" "}
+          {formattedDate ? `(${formattedDate})` : ""}
+        </h1>
 
-          {/* desna grupa dugmadi */}
-          <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-2 rounded bg-gray-200 text-gray-900 hover:bg-gray-300"
-              onClick={() => navigate("/dashboard")}
-            >
-              ◀ Zurück zum Dashboard
-            </button>
+        {/* desna grupa dugmadi */}
+        <div className="flex items-center gap-2">
+          <button
+            className="px-3 py-2 rounded bg-gray-200 text-gray-900 hover:bg-gray-300"
+            onClick={() => navigate("/dashboard")}
+          >
+            ◀ Zurück zum Dashboard
+          </button>
 
-            <button
-              onClick={() => navigate(`/projekt/${id}/timeline`)}
-              className="btn bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded"
-            >
-              Timeline
-            </button>
-          </div>
+          <button
+            onClick={() => navigate(`/projekt/${id}/timeline`)}
+            className="btn bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded"
+          >
+            Timeline
+          </button>
         </div>
-
+      </div>
     </div>
 
-
-      
-      {/* ---- NOVO: TOP MENI (tabs) ---- */}
-      <div className="border-b border-gray-700">
-        <nav className="flex gap-2">
-           {tabs.filter(t => t.show).map(t => (            
+    {/* ---- NOVO: TOP MENI (tabs) ---- */}
+    <div className="border-b border-gray-700">
+      <nav className="flex gap-2">
+        {tabs
+          .filter((t) => t.show)
+          .map((t) => (
             <button
               key={t.key}
               onClick={() => changeTab(t.key)}
@@ -322,81 +326,77 @@ return (
                 "px-4 py-2 rounded-t-lg",
                 activeTab === t.key
                   ? "bg-gray-800 text-white border-x border-t border-gray-700"
-                  : "text-gray-700 hover:text-gray-300"
+                  : "text-gray-700 hover:text-gray-300",
               ].join(" ")}
             >
               {t.label}
             </button>
           ))}
-        </nav>
-      </div>
-
-      {/* ---- NOVO: SADRŽAJ PO TABU ---- */}
-      {activeTab === "struktur" && (
-        <div className="w-full flex justify-center">
-          <div className="w-full max-w-4xl">
-            <ProjektStruktur
-              isAdmin={isAdmin}
-              newBauteil={newBauteil}
-              setNewBauteil={setNewBauteil}
-              addBauteil={addBauteil}
-              bauteile={bauteile}
-              editingNames={editingNames}
-              handleNameChange={handleNameChange}
-              saveEdit={saveEdit}
-              startEditing={startEditing}
-              deleteItem={deleteItem}
-              newStiegen={newStiegen}
-              setNewStiegen={setNewStiegen}
-              addStiege={addStiege}
-              newEbenen={newEbenen}
-              setNewEbenen={setNewEbenen}
-              addEbene={addEbene}
-              newTops={newTops}
-              setNewTops={setNewTops}
-              addTop={addTop}
-              loadStructure={loadStructure}
-              hasTasks={hasTasks}
-              handleSyncTasks={handleSyncTasks}
-            />
-          </div>
-
-          
-        </div>
-      )}
-
-      {activeTab === "mitglieder" && id && (
-        <div className="w-full flex justify-center">
-          <section className="w-full max-w-3xl md:max-w-4xl px-4"> 
-            {/* px-4 da ne lijepi uz rubove na mobitelu */}
-             <ProjectUsersCard projectId={Number(id)} isAdmin={isAdmin} />
-          </section>
-        </div>
-      )}
-
-
-      {activeTab === "statistik" && (
-        <div>
-          <ProjektStatistik stats={stats} projectId={Number(id)} />
-        </div>
-      )}
-
-      {activeTab === "kurve" && id && (
-        <div className="w-full flex justify-center">
-          <section className="w-full max-w-6xl">
-            {/* isti vizual kao u Statistik tabu */}
-            <div className="rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-lg">
-              {/* visina kontejnera da Chart.js ima prostor */}
-              <div className="h-[520px]">
-                <ProgressCurve projectId={Number(id)} />
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
-
+      </nav>
     </div>
-  );
+
+    {/* ---- NOVO: SADRŽAJ PO TABU ---- */}
+    {activeTab === "struktur" && (
+      <div className="w-full flex justify-center">
+        <div className="w-full max-w-4xl">
+          <ProjektStruktur
+            isAdmin={isAdmin}
+            newBauteil={newBauteil}
+            setNewBauteil={setNewBauteil}
+            addBauteil={addBauteil}
+            bauteile={bauteile}
+            editingNames={editingNames}
+            handleNameChange={handleNameChange}
+            saveEdit={saveEdit}
+            startEditing={startEditing}
+            deleteItem={deleteItem}
+            newStiegen={newStiegen}
+            setNewStiegen={setNewStiegen}
+            addStiege={addStiege}
+            newEbenen={newEbenen}
+            setNewEbenen={setNewEbenen}
+            addEbene={addEbene}
+            newTops={newTops}
+            setNewTops={setNewTops}
+            addTop={addTop}
+            loadStructure={loadStructure}
+            hasTasks={hasTasks}
+            handleSyncTasks={handleSyncTasks}
+          />
+        </div>
+      </div>
+    )}
+
+    {activeTab === "mitglieder" && id && (
+      <div className="w-full flex justify-center">
+        <section className="w-full max-w-3xl md:max-w-4xl px-4">
+          {/* px-4 da ne lijepi uz rubove na mobitelu */}
+          <ProjectUsersCard projectId={Number(id)} isAdmin={isAdmin} />
+        </section>
+      </div>
+    )}
+
+    {activeTab === "statistik" && (
+      <div>
+        <ProjektStatistik stats={stats} projectId={Number(id)} />
+      </div>
+    )}
+
+    {activeTab === "kurve" && id && (
+      <div className="w-full flex justify-center">
+        <section className="w-full max-w-6xl">
+          {/* isti vizual kao u Statistik tabu */}
+          <div className="rounded-xl border border-gray-700 bg-gray-900 p-6 shadow-lg">
+            {/* visina kontejnera da Chart.js ima prostor */}
+            <div className="h-[520px]">
+              <ProgressCurve projectId={Number(id)} />
+            </div>
+          </div>
+        </section>
+      </div>
+    )}
+  </div>
+);
 };
 
 export default ProjektDetail;

@@ -1,12 +1,9 @@
-import React from "react";
+import React, { forwardRef } from "react";
 import api from "../api/axios";
 import ProcessModelDropdown from "./ProcessModelDropdown";
 import GenerateTasksButton from "./GenerateTasksButton";
 import { useParams } from "react-router-dom";
 import CustomDatePicker from "./CustomDatePicker";
-import { de } from "date-fns/locale/de";
-
-
 
 type EntityType = "bauteil" | "stiege" | "ebene" | "top";
 
@@ -24,13 +21,15 @@ const parseMaxSuffix = (names: string[], prefix: string, rx: RegExp) => {
 };
 
 const suggestBauteilName = (bauteile: { name: string }[]) => {
-  const names = bauteile.map(b => String(b.name || "")).filter(Boolean);
+  const names = bauteile.map((b) => String(b.name || "")).filter(Boolean);
   const max = parseMaxSuffix(names, "Bauteil", /^Bauteil[-\s]?(\d+)$/i);
   return `Bauteil-${max + 1}`;
 };
 
 const suggestStiegeName = (bauteil: any) => {
-  const names = (bauteil?.stiegen || []).map((s: any) => String(s.name || "")).filter(Boolean);
+  const names = (bauteil?.stiegen || [])
+    .map((s: any) => String(s.name || ""))
+    .filter(Boolean);
   const max = parseMaxSuffix(names, "Stiege", /^Stiege[-\s]?(\d+)$/i);
   return `Stiege${max + 1}`;
 };
@@ -57,16 +56,15 @@ const suggestEbeneName = (stiege: any) => {
   return `OG${max + 1}`;
 };
 
-
 // Top: broji se po STIEGE (ne po Ebeni) – skup svih topova kroz sve Ebene u toj Stiege
 const suggestTopName = (stiege: any) => {
   const names = (stiege?.ebenen || [])
     .flatMap((e: any) => e?.tops || [])
-    .map((t: any) => String(t.name || "")).filter(Boolean);
+    .map((t: any) => String(t.name || ""))
+    .filter(Boolean);
   const max = parseMaxSuffix(names, "Top", /^Top[-\s]?(\d+)$/i);
   return `Top${max + 1}`;
 };
-
 
 interface ProjektStrukturProps {
   isAdmin?: boolean;
@@ -101,7 +99,7 @@ interface ProjektStrukturProps {
 }
 
 const typeToPath: Record<EntityType, string> = {
-  bauteil: "bauteile", 
+  bauteil: "bauteile",
   stiege: "stiegen",
   ebene: "ebenen",
   top: "tops",
@@ -112,7 +110,7 @@ const eff = (
   ownPending: number | null | undefined,
   inheritPending: number | null | undefined,
   persisted: number | null | undefined
-) => ownPending ?? inheritPending ?? (persisted ?? null);
+) => ownPending ?? inheritPending ?? persisted ?? null;
 
 const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
   isAdmin = false,
@@ -146,6 +144,21 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
   handleSyncTasks,
 }) => {
   const canEdit = !!isAdmin;
+
+  const [flash, setFlash] = React.useState<null | {
+    type: "success" | "error";
+    text: string;
+  }>(null);
+
+  const [syncing, setSyncing] = React.useState(false);
+
+  const showFlash = React.useCallback(
+    (text: string, type: "success" | "error" = "success") => {
+      setFlash({ type, text });
+      setTimeout(() => setFlash(null), 3500);
+    },
+    []
+  );
 
   const { id: projectId } = useParams<{ id: string }>();
   const [projectStart, setProjectStart] = React.useState<string | null>(null);
@@ -322,62 +335,180 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
     });
   };
 
-  const applyPendingThenSync = React.useCallback(async () => {
-    // 0) project_id (uzimamo ga iz strukture)
-    const pid = bauteile?.[0]?.project_id;
-    if (!pid) return;
+  // iz trenutno prikazane strukture izvuci sve vidljive TOP-ove
+  const visibleTopIds = React.useMemo(
+    () =>
+      (bauteile ?? [])
+        .flatMap((b) => b.stiegen ?? [])
+        .flatMap((s) => s.ebenen ?? [])
+        .flatMap((e) => e.tops ?? [])
+        .map((t) => t.id),
+    [bauteile]
+  );
 
-    // 1) upiši sve pending PM-ove (kao i do sada)
-    const entries = Object.entries(pendingPM);
-    if (entries.length) {
-      for (const [k, pm] of entries) {
-        const [t, idStr] = k.split(":") as [EntityType, string];
-        const id = Number(idStr);
-        const collection = typeToPath[t];
-
-        let name: string | undefined = undefined;
-        try {
-          const res = await api.get(`/${collection}/${id}`);
-          name = res.data?.name ?? undefined;
-        } catch {}
-
-        await api.put(
-          `/${collection}/${id}`,
-          name ? { name, process_model_id: pm } : { process_model_id: pm }
-        );
-      }
-      setPendingPM({});
-      await loadStructure(); // da UI odmah prikaže nove PM-ove
-    }
-
-    // 2) napravi mapu start datuma po TOP-u (iz onoga što vidiš u UI)
-    //    Ako već imaš helper buildStartMapForTops(), koristi ga; u suprotnom inline:
-    const topStartMap: Record<string, string> = {};
-    for (const b of bauteile || []) {
-      const bStart = pendingStart[`bauteil:${b.id}`] ?? projectStart ?? null;
+  // helper: prikupi SVE topId iz cijele strukture (i nevidljive)
+  const collectAllTopIds = (bauteile: any[]) => {
+    const ids: number[] = [];
+    for (const b of bauteile) {
       for (const s of b.stiegen || []) {
-        const sStart = pendingStart[`stiege:${s.id}`] ?? bStart;
-        for (const eb of s.ebenen || []) {
-          const eStart = pendingStart[`ebene:${eb.id}`] ?? sStart;
-          for (const t of eb.tops || []) {
-            const tStart = pendingStart[`top:${t.id}`] ?? eStart;
-            if (tStart) topStartMap[String(t.id)] = String(tStart).slice(0, 10);
-          }
+        for (const e of s.ebenen || []) {
+          for (const t of e.tops || []) ids.push(Number(t.id));
         }
       }
     }
+    return ids;
+  };
 
-    // 3) SYNC sa start_map (➡️ backend će koristiti ove datume umjesto project.start_date)
-    await api.post(
-      `/projects/${pid}/sync-tasks`,
-      { start_map: { top: topStartMap } },
-      { meta: { showLoader: true } }
+  // Vrati set TOP ID-jeva kojima je datum eksplicitno obrisan (pendingStart[key] === null)
+  // Uvažava i brisanje na roditelju (propagira niže).
+  const getClearedTopIds = (
+    bauteile: any[],
+    pendingStart: Record<string, string | null>
+  ) => {
+    const cleared = new Set<number>();
+
+    const isClearedHere = (type: EntityType, id: number) =>
+      Object.prototype.hasOwnProperty.call(pendingStart, `${type}:${id}`) &&
+      pendingStart[`${type}:${id}`] === null;
+
+    const walkBauteil = (b: any, parentCleared: boolean) => {
+      const here = isClearedHere("bauteil", b.id);
+      const clearedFlag = parentCleared || here;
+      for (const s of b.stiegen || []) walkStiege(s, clearedFlag);
+    };
+
+    const walkStiege = (s: any, parentCleared: boolean) => {
+      const here = isClearedHere("stiege", s.id);
+      const clearedFlag = parentCleared || here;
+      for (const e of s.ebenen || []) walkEbene(e, clearedFlag);
+    };
+
+    const walkEbene = (e: any, parentCleared: boolean) => {
+      const here = isClearedHere("ebene", e.id);
+      const clearedFlag = parentCleared || here;
+      for (const t of e.tops || []) walkTop(t, clearedFlag);
+    };
+
+    const walkTop = (t: any, parentCleared: boolean) => {
+      const here = isClearedHere("top", t.id);
+      const clearedFlag = parentCleared || here;
+      if (clearedFlag) cleared.add(Number(t.id));
+    };
+
+    for (const b of bauteile || []) walkBauteil(b, false);
+    return cleared;
+  };
+
+  const applyPendingThenSync = React.useCallback(async () => {
+    // potvrda (DE)
+    const ok = window.confirm(
+      "Achtung!\n\n" +
+        "Es werden NUR die aktuell gefilterten/angezeigten Einheiten synchronisiert. " +
+        "Die Aufgaben werden gemäß dem zugewiesenen Prozessmodell und den Startdaten neu aufgebaut. " +
+        "Bereits begonnene Aufgaben (mit Start Ist) werden NICHT verändert und bleiben im Timeline.\n\n" +
+        "Möchten Sie fortfahren?"
     );
 
-    // 4) refetch strukture nakon sync-a (datumi/PM iz taskova će se reflektovati)
-    await loadStructure();
-  }, [bauteile, pendingPM, pendingStart, projectStart, loadStructure]);
-  
+    if (!ok) return;
+
+    setSyncing(true);
+    try {
+      // 0) project_id (uzimamo ga iz strukture)
+      const pid = bauteile?.[0]?.project_id;
+      if (!pid) return;
+
+      // 1) upiši sve pending PM-ove (kao i do sada)
+      const entries = Object.entries(pendingPM);
+      if (entries.length) {
+        for (const [k, pm] of entries) {
+          const [t, idStr] = k.split(":") as [EntityType, string];
+          const id = Number(idStr);
+          const collection = typeToPath[t];
+
+          let name: string | undefined = undefined;
+          try {
+            const res = await api.get(`/${collection}/${id}`);
+            name = res.data?.name ?? undefined;
+          } catch {}
+
+          await api.put(
+            `/${collection}/${id}`,
+            name ? { name, process_model_id: pm } : { process_model_id: pm }
+          );
+        }
+        setPendingPM({});
+        await loadStructure();
+      }
+
+      // 2) složi start_map po TOP-ovima – SAMO oni s eksplicitnim (ili naslijeđenim) datumom
+      const topStartMap = buildStartMapForTops();
+      // sinkroniziramo samo trenutno vidljive (scope!)
+      const topIdsToSync = visibleTopIds;
+
+      // 1) Topovi eksplicitno "očišćeni" u ovoj sesiji (na njima ili na roditelju)
+      const clearedNow = getClearedTopIds(bauteile, pendingStart);
+
+      // 2) Purgeaj SAMO one koji su:
+      //    - vidljivi (scope),
+      //    - imali taskove ranije,
+      //    - NEMAJU efektivan datum sada (nisu u start_map),
+      //    - i eksplicitno su obrisani u ovoj sesiji (ili im je roditelj obrisan)
+      const purgeTopIds = topIdsToSync.filter((id) => {
+        const hadTasksBefore = !!derivedStartByTop[id];
+        const hasDateNow = Object.prototype.hasOwnProperty.call(
+          topStartMap,
+          String(id)
+        );
+        const wasClearedNow = clearedNow.has(id);
+        return hadTasksBefore && !hasDateNow && wasClearedNow;
+      });
+
+      // Ako baš NEMA nijednog TOP-a vidljivog, nema smisla zvati backend
+      if (topIdsToSync.length === 0) {
+        showFlash("Nema vidljivih jedinica za sinkronizaciju.", "error");
+        setSyncing(false);
+        return;
+      }
+
+      // (Opcionalno) Ako je mapa prazna, samo pokaži benignu poruku, ali nastavi.
+      // Backend će preskočiti sve jer nema datuma za ugraditi (neće dirati TOP-ove bez datuma).
+      if (Object.keys(topStartMap).length === 0) {
+        console.debug(
+          "[SYNC] start_map je prazan – sinkroniziram samo promjene PM-a, bez datuma."
+        );
+      }
+
+      await api.post(
+        `/projects/${pid}/sync-tasks`,
+        {
+          start_map: { top: topStartMap }, // generiraj/aktualiziraj SAMO ove
+          filters: { topIds: visibleTopIds }, // ograniči na trenutno vidljive
+          purge_top_ids: purgeTopIds, // OBRIŠI taskove za ove (bez datuma)
+        },
+        { meta: { showLoader: true } }
+      );
+
+      // 4) refetch
+      await loadStructure();
+
+      // ✅ flash poruka
+      showFlash("Aufgaben wurden erfolgreich synchronisiert.");
+    } catch (e) {
+      showFlash(
+        "Synchronisierung fehlgeschlagen. Bitte erneut versuchen.",
+        "error"
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }, [
+    bauteile,
+    pendingPM,
+    pendingStart,
+    projectStart,
+    loadStructure,
+    visibleTopIds,
+  ]);
 
   const showGenerate = canEdit && hasTasks === false;
   const showSync = canEdit && hasTasks === true;
@@ -405,31 +536,151 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
   };
 
   // vrati mapu: { [topId]: 'YYYY-MM-DD' }
-  const buildStartMapForTops = React.useCallback(() => {
-    const out: Record<number, string> = {};
+  // helper: pretvori bilo što u 'YYYY-MM-DD' ili null
+  const toYMD = (v: any): string | null => {
+    if (v == null) return null;
+    // ako je string sa samo razmakom ili prazan -> null
+    if (typeof v === "string") {
+      const s = v.trim();
+      if (!s) return null;
+      // pokušaj uzeti prvih 10 kad je ISO string
+      // inače pokušaj Date parse
+      const iso = s.length >= 10 ? s.slice(0, 10) : s;
+      // gruba validacija YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
+      const d = new Date(s);
+      if (isNaN(d as any)) return null;
+      return d.toISOString().slice(0, 10);
+    }
+    // dayjs ili Date ili objekt sa toISOString
+    if (typeof v?.toISOString === "function") {
+      try {
+        return v.toISOString().slice(0, 10);
+      } catch {
+        return null;
+      }
+    }
+    // broj? (timestamp)
+    if (typeof v === "number") {
+      const d = new Date(v);
+      if (isNaN(d as any)) return null;
+      return d.toISOString().slice(0, 10);
+    }
+    return null;
+  };
 
+  // helper: pending ima prednost, ali "" i nevažeće -> ignoriraj
+  const pickExplicit = (pending: any, persisted: any): string | null => {
+    const p = toYMD(pending);
+    if (p) return p;
+    const q = toYMD(persisted);
+    return q || null;
+  };
+
+  // Vrati mapu: { [topId]: 'YYYY-MM-DD' } – SAMO jedinice koje imaju efektivni (naslijeđeni) datum
+  const buildStartMapForTops = React.useCallback(() => {
+    const out: Record<string, string> = {};
+
+    // PAŽNJA: provjeri da su ključevi isti kao gdje spremaš u pendingStart:
+    // 'bauteil:<id>', 'stiege:<id>', 'ebene:<id>', 'top:<id>'
     for (const b of bauteile) {
-      const bStart = pendingStart[`bauteil:${b.id}`] ?? projectStart ?? null;
+      const bStart = pickExplicit(
+        pendingStart[`bauteil:${b.id}`],
+        b.start_soll
+      );
 
       for (const s of b.stiegen || []) {
-        const sStart = pendingStart[`stiege:${s.id}`] ?? bStart;
+        const sOwn = pickExplicit(pendingStart[`stiege:${s.id}`], s.start_soll);
+        const sStart = sOwn ?? bStart;
 
         for (const e of s.ebenen || []) {
-          const eStart = pendingStart[`ebene:${e.id}`] ?? sStart;
+          const eOwn = pickExplicit(
+            pendingStart[`ebene:${e.id}`],
+            e.start_soll
+          );
+          const eStart = eOwn ?? sStart;
 
           for (const t of e.tops || []) {
-            const tStart = pendingStart[`top:${t.id}`] ?? eStart;
-            if (tStart) out[t.id] = String(tStart).slice(0, 10); // normalizuj
+            const tOwn = pickExplicit(
+              pendingStart[`top:${t.id}`],
+              t.start_soll
+            );
+            const tStart = tOwn ?? eStart;
+
+            if (tStart) {
+              out[String(t.id)] = tStart; // već je YYYY-MM-DD
+            }
           }
         }
       }
     }
     return out;
-  }, [bauteile, pendingStart, projectStart]);
+  }, [bauteile, pendingStart]);
 
   // 🆕 vrijednosti izvedene iz taskova (po TOP-u)
-  const [derivedStartByTop, setDerivedStartByTop] = React.useState<Record<number, string>>({});
-  const [derivedPmNameByTop, setDerivedPmNameByTop] = React.useState<Record<number, string>>({});
+  const [derivedStartByTop, setDerivedStartByTop] = React.useState<
+    Record<number, string>
+  >({});
+  // Usporedba ISO 'YYYY-MM-DD' stringova – vrati minimum
+  const minDate = (
+    a: string | null | undefined,
+    b: string | null | undefined
+  ) => {
+    if (!a) return b ?? null;
+    if (!b) return a ?? null;
+    return a < b ? a : b;
+  };
+
+  // Min derived po potomcima
+  const derivedMinForEbene = (e: any) => {
+    let m: string | null = null;
+    for (const t of e?.tops || []) {
+      const s = derivedStartByTop[Number(t.id)];
+      if (s) m = minDate(m, s);
+    }
+    return m;
+  };
+  const derivedMinForStiege = (s: any) => {
+    let m: string | null = null;
+    for (const e of s?.ebenen || []) m = minDate(m, derivedMinForEbene(e));
+    return m;
+  };
+  const derivedMinForBauteil = (b: any) => {
+    let m: string | null = null;
+    for (const s of b?.stiegen || []) m = minDate(m, derivedMinForStiege(s));
+    return m;
+  };
+
+  // DISPLAY vrijednost (bez nasljeđivanja s roditelja!)
+  // prioritet: pending -> eksplicitni persisted -> derived -> null
+  const displayStartTop = (t: any) => {
+    const k = `top:${t.id}`;
+    if (Object.prototype.hasOwnProperty.call(pendingStart, k))
+      return pendingStart[k];
+    return t.start_soll ?? derivedStartByTop[Number(t.id)] ?? null;
+  };
+  const displayStartEbene = (e: any) => {
+    const k = `ebene:${e.id}`;
+    if (Object.prototype.hasOwnProperty.call(pendingStart, k))
+      return pendingStart[k];
+    return e.start_soll ?? derivedMinForEbene(e) ?? null;
+  };
+  const displayStartStiege = (s: any) => {
+    const k = `stiege:${s.id}`;
+    if (Object.prototype.hasOwnProperty.call(pendingStart, k))
+      return pendingStart[k];
+    return s.start_soll ?? derivedMinForStiege(s) ?? null;
+  };
+  const displayStartBauteil = (b: any) => {
+    const k = `bauteil:${b.id}`;
+    if (Object.prototype.hasOwnProperty.call(pendingStart, k))
+      return pendingStart[k];
+    return b.start_soll ?? derivedMinForBauteil(b) ?? null;
+  };
+
+  const [derivedPmNameByTop, setDerivedPmNameByTop] = React.useState<
+    Record<number, string>
+  >({});
 
   // Kad imamo bar jedan bauteil, znamo project_id → povuci taskove i složi mape
   React.useEffect(() => {
@@ -483,6 +734,29 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
     };
   }, [bauteile]);
 
+  // jednostavna funkcija koja briše vrijednost date inputa
+  const clearDateInput = (ref: React.RefObject<HTMLInputElement>) => {
+    if (ref.current) {
+      ref.current.value = "";
+      ref.current.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+  };
+
+  // helper – vrati baš eksplicitni datum za UI (pending > persisted), bez nasljeđivanja
+  const ownStart = (
+    type: "bauteil" | "stiege" | "ebene" | "top",
+    id: number,
+    persisted?: any
+  ) => {
+    const k = `${type}:${id}`;
+    if (Object.prototype.hasOwnProperty.call(pendingStart, k)) {
+      // korisnik je dirao – null znači "obrisano" → prikaži prazno
+      return pendingStart[k];
+    }
+    // inače prikaži ono što je STVARNO upisano u DB za taj objekt
+    return persisted?.start_soll ?? null;
+  };
+
   return (
     <div className="col-span-1 overflow-y-auto max-h-[80vh] pr-2">
       <div className="space-y-8">
@@ -507,7 +781,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                   onClick={() => {
                     if (!newBauteil) {
                       setNewBauteil(suggestBauteilName(bauteile));
-                      return; 
+                      return;
                     }
                     addBauteil();
                   }}
@@ -527,8 +801,13 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
           const bEff = eff(bPending, null, bPersisted);
           const bStartPersisted: string | null = b.start_soll ?? null;
           const bStartPending = pendingStart[keyOf("bauteil", b.id)];
-          const bStartEff =
-            bStartPending ?? bStartPersisted ?? projectStart ?? null;
+          const bStartKey = keyOf("bauteil", b.id);
+          const bStartEff = Object.prototype.hasOwnProperty.call(
+            pendingStart,
+            bStartKey
+          )
+            ? pendingStart[bStartKey]
+            : bStartPersisted ?? projectStart ?? null;
 
           return (
             <div
@@ -575,7 +854,6 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                   </div>
 
                   <div className="text-sm text-slate-300 flex items-center justify-between">
-                    
                     <ProcessModelDropdown
                       label="Prozessmodell"
                       widthClass="w-[220px]"
@@ -595,8 +873,18 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                     <label className="block text-xs ml-5"></label>
                     <CustomDatePicker
                       label="Start (Soll)"
-                      value={bStartEff}
+                      value={displayStartBauteil(b)}
                       disabled={!canEdit}
+                      onKeyDown={async (
+                        e: React.KeyboardEvent<HTMLInputElement>
+                      ) => {
+                        // ← tipizirano
+                        if (e.key === "Delete" || e.key === "Backspace") {
+                          handleSelectStart("bauteil", b.id, null);
+                          await commitStart("bauteil", b.id, null);
+                          await loadStructure();
+                        }
+                      }}
                       onChange={async (v) => {
                         handleSelectStart("bauteil", b.id, v);
                         await commitStart("bauteil", b.id, v);
@@ -659,12 +947,18 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                   const sEff = eff(sPending, bPending ?? null, sPersisted);
                   const sStartPersisted: string | null = s.start_soll ?? null;
                   const sStartPending = pendingStart[keyOf("stiege", s.id)];
-                  const sStartEff =
-                    sStartPending ??
-                    bStartPending ??
-                    sStartPersisted ??
-                    projectStart ??
-                    null;
+                  const sKey = keyOf("stiege", s.id);
+                  const sStartEff = Object.prototype.hasOwnProperty.call(
+                    pendingStart,
+                    sKey
+                  )
+                    ? pendingStart[sKey]
+                    : Object.prototype.hasOwnProperty.call(
+                        pendingStart,
+                        bStartKey
+                      )
+                    ? pendingStart[bStartKey]
+                    : sStartPersisted ?? projectStart ?? null;
 
                   return (
                     <div key={s.id}>
@@ -729,7 +1023,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                           <div>
                             <CustomDatePicker
                               label="Start (Soll)"
-                              value={sStartEff}
+                              value={displayStartStiege(s)}
                               disabled={!canEdit}
                               onChange={async (v) => {
                                 handleSelectStart("stiege", s.id, v);
@@ -799,13 +1093,24 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                             e.start_soll ?? null;
                           const eStartPending =
                             pendingStart[keyOf("ebene", e.id)];
+                          const eKey = keyOf("ebene", e.id);
                           const eStartEff =
-                            eStartPending ??
-                            sStartPending ??
-                            bStartPending ??
-                            eStartPersisted ??
-                            projectStart ??
-                            null;
+                            Object.prototype.hasOwnProperty.call(
+                              pendingStart,
+                              eKey
+                            )
+                              ? pendingStart[eKey]
+                              : Object.prototype.hasOwnProperty.call(
+                                  pendingStart,
+                                  sKey
+                                )
+                              ? pendingStart[sKey]
+                              : Object.prototype.hasOwnProperty.call(
+                                  pendingStart,
+                                  bStartKey
+                                )
+                              ? pendingStart[bStartKey]
+                              : eStartPersisted ?? projectStart ?? null;
 
                           return (
                             <div key={e.id}>
@@ -875,7 +1180,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                                   <div>
                                     <CustomDatePicker
                                       label="Start (Soll)"
-                                      value={eStartEff}
+                                      value={displayStartEbene(e)}
                                       disabled={!canEdit}
                                       onChange={async (v) => {
                                         handleSelectStart("ebene", e.id, v);
@@ -952,15 +1257,33 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                                   const tStartDerived =
                                     derivedStartByTop[t.id] ?? null; // 🆕 iz taskova
 
+                                  const tKey = keyOf("top", t.id);
                                   const tStartEff =
-                                    tStartPending ??
-                                    eStartPending ??
-                                    sStartPending ??
-                                    bStartPending ??
-                                    tStartPersisted ??
-                                    tStartDerived ?? // 🆕 ako ništa drugo nema – uzmi iz taskova
-                                    projectStart ??
-                                    null;
+                                    Object.prototype.hasOwnProperty.call(
+                                      pendingStart,
+                                      tKey
+                                    )
+                                      ? pendingStart[tKey]
+                                      : Object.prototype.hasOwnProperty.call(
+                                          pendingStart,
+                                          eKey
+                                        )
+                                      ? pendingStart[eKey]
+                                      : Object.prototype.hasOwnProperty.call(
+                                          pendingStart,
+                                          sKey
+                                        )
+                                      ? pendingStart[sKey]
+                                      : Object.prototype.hasOwnProperty.call(
+                                          pendingStart,
+                                          bStartKey
+                                        )
+                                      ? pendingStart[bStartKey]
+                                      : tStartPersisted ??
+                                        tStartDerived ??
+                                        projectStart ??
+                                        null;
+
                                   const topPmNameDerived =
                                     derivedPmNameByTop[t.id];
 
@@ -1054,7 +1377,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
                                         <div>
                                           <CustomDatePicker
                                             label="Start (Soll)"
-                                            value={tStartEff}
+                                            value={displayStartTop(t)}
                                             disabled={!canEdit}
                                             onChange={async (v) => {
                                               handleSelectStart("top", t.id, v);
@@ -1092,12 +1415,34 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
         {showSync && (
           <button
             onClick={applyPendingThenSync}
-            className="bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-semibold px-6 py-2 rounded-xl shadow hover:shadow-lg hover:scale-105 transition active:scale-100"
+            disabled={syncing}
+            className={`bg-gradient-to-r from-yellow-500 to-amber-400 text-black font-semibold px-6 py-2 rounded-xl shadow transition
+            ${
+              syncing
+                ? "opacity-60 cursor-not-allowed"
+                : "hover:shadow-lg hover:scale-105 active:scale-100"
+            }`}
+            title={
+              syncing ? "Synchronisierung läuft…" : "Aufgaben synchronisieren"
+            }
           >
-            🔄 Aufgaben synchronisieren
+            {syncing ? "⏳ Synchronisierung…" : "🔄 Aufgaben synchronisieren"}
           </button>
         )}
       </div>
+      {flash && (
+        <div
+          className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded shadow-lg
+      ${
+        flash.type === "success"
+          ? "bg-emerald-600 text-white"
+          : "bg-red-600 text-white"
+      }`}
+          role="status"
+        >
+          {flash.text}
+        </div>
+      )}
     </div>
   );
 };

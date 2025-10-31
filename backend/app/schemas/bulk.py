@@ -1,6 +1,6 @@
 # app/schemas/bulk.py
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import Optional, List, Union
 from datetime import date
 
 class BulkFilters(BaseModel):
@@ -16,9 +16,13 @@ class BulkFilters(BaseModel):
     bauteile: List[str] = []
     activities: List[str] = []
     processModels: List[str] = []
+    topIds: Optional[List[int]] = None
 
 class BulkUpdate(BaseModel):
-    sub_id: int | None = None
+    start_ist: Optional[Union[date, str]] = None  # ⬅️ PROMJENA
+    end_ist:   Optional[Union[date, str]] = None  # ⬅️ PROMJENA
+    status:    Optional[str] = None
+    sub_id:    Optional[int] = None
 
 class BulkBody(BaseModel):
     ids: Optional[List[int]] = None

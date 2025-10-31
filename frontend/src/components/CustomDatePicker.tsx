@@ -5,13 +5,17 @@ import { de } from "date-fns/locale";
 import { getAustriaHolidays, getWeekends } from "../utils/atHolidays";
 
 
-const CalendarInput = React.forwardRef<HTMLInputElement, {
-  value?: string;
-  onClick?: () => void;
-  placeholder?: string;
-  disabled?: boolean;
-  label?: string;            // 👈 NOVO
-}>(({ value, onClick, placeholder, disabled, label }, ref) => {
+const CalendarInput = React.forwardRef<
+  HTMLInputElement,
+  {
+    value?: string;
+    onClick?: () => void;
+    placeholder?: string;
+    disabled?: boolean;
+    label?: string;
+    onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  }
+>(({ value, onClick, placeholder, disabled, label, onKeyDown }, ref) => {
   const hasValue = !!value && value.trim().length > 0;
 
   return (
@@ -22,7 +26,7 @@ const CalendarInput = React.forwardRef<HTMLInputElement, {
           className={[
             "pointer-events-none absolute left-3 top-1",
             "text-[10px] leading-none tracking-wide",
-            disabled ? "text-slate-500" : "text-slate-400"
+            disabled ? "text-slate-500" : "text-slate-400",
           ].join(" ")}
         >
           {label}
@@ -33,6 +37,7 @@ const CalendarInput = React.forwardRef<HTMLInputElement, {
         ref={ref}
         value={value}
         onClick={onClick}
+        onKeyDown={onKeyDown}
         readOnly
         placeholder={label ? undefined : placeholder}
         disabled={disabled}
@@ -41,9 +46,9 @@ const CalendarInput = React.forwardRef<HTMLInputElement, {
           "bg-slate-800/60 text-slate-100 placeholder-slate-400",
           "border border-slate-600 rounded-md",
           "px-3 py-1.5 pr-9",
-          label ? "pt-4" : "",                      // 👈 ostavi prostor za label
+          label ? "pt-4" : "", // 👈 ostavi prostor za label
           "focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500",
-          "disabled:opacity-60 disabled:cursor-not-allowed"
+          "disabled:opacity-60 disabled:cursor-not-allowed",
         ].join(" ")}
       />
 
@@ -54,8 +59,13 @@ const CalendarInput = React.forwardRef<HTMLInputElement, {
         disabled={disabled}
         aria-label="Kalender öffnen"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM5 7h14a1 1 0 0 1 1 1v1H4V8a1 1 0 0 1 1-1Z"/>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-4 w-4"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+        >
+          <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v11a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1Zm13 8H4v9a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-9ZM5 7h14a1 1 0 0 1 1 1v1H4V8a1 1 0 0 1 1-1Z" />
         </svg>
       </button>
     </div>
@@ -71,6 +81,7 @@ type Props = {
   onChange: (isoDateOrNull: string | null) => void;
   disabled?: boolean;
   label?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
 };
 
 function parseISO(d?: string | null): Date | null {
@@ -90,6 +101,7 @@ const CustomDatePicker: React.FC<Props> = ({
   onChange,
   disabled,
   label,
+  onKeyDown,
 }) => {
   const selected = parseISO(value);
   const year = (selected ?? new Date()).getFullYear();
@@ -137,11 +149,14 @@ const CustomDatePicker: React.FC<Props> = ({
       onChange={handleChange}
       highlightDates={highlightDates}
       dateFormat="dd.MM.yyyy"
-      customInput={<CalendarInput label={label} />}
+      customInput={<CalendarInput label={label} onKeyDown={onKeyDown} />}
       wrapperClassName="inline-block"
       calendarClassName="dp-eu"
       disabled={!!disabled}
       renderDayContents={renderDay}
+      isClearable
+      clearButtonTitle="Datum löschen"
+      className="my-datepicker"
     />
   );
 };

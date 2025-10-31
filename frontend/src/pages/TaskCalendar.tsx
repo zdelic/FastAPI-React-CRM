@@ -152,12 +152,25 @@ const TaskCalendar = () => {
 
   const toDateOnly = (d?: string | null) => (d ? d : null);
 
+  function computeStatusFromIst(u: EditTaskModalTask) {
+    const hasStart = !!u.start_ist;
+    const hasEnd = !!u.end_ist;
+    if (hasEnd) return "done";
+    if (hasStart) return "in_progress";
+    return "offen";
+  }
+  
   function mapToApiPayload(u: EditTaskModalTask) {
-    // prilagodi nazive polja ako backend očekuje drugačije ključeve
+    // status isključivo po pravilima:
+    // - samo start_ist  -> in_progress
+    // - i end_ist       -> done
+    // - bez oba         -> offen
+    const status = computeStatusFromIst(u);
+
     return {
       title: u.title ?? "",
       beschreibung: u.beschreibung ?? "",
-      status: u.status ?? "offen",
+      status,
       start_soll: toDateOnly(u.start_soll),
       end_soll: toDateOnly(u.end_soll),
       start_ist: toDateOnly(u.start_ist),
@@ -165,6 +178,7 @@ const TaskCalendar = () => {
       sub_id: u.sub_id ?? null,
     };
   }
+  
 
   const getProcessModelName = (t: any): string => t.process_model || "";
 
@@ -712,7 +726,7 @@ const TaskCalendar = () => {
   useEffect(() => {
     if (activeTab === "Reset alle Filter") {
       resetFilters();
-      setActiveTab("Filter nach Datum");
+      setActiveTab(""); // ⬅️ zatvara filter-div
     }
   }, [activeTab]);
 
@@ -740,6 +754,46 @@ const TaskCalendar = () => {
     });
     setSkipOpen(false);
     await loadTimeline(); // ⬅️ loadTimeline umjesto loadTasks
+  }
+
+  // označi sve filtrirane taskove kao završene
+  async function markFilteredTasksAsDone() {
+    const confirmDo = window.confirm(
+      "Alle aktuell gefilterten Aufgaben als 'Fertig' markieren?\n\n" +
+        "Start Ist = Start Soll\nEnde Ist = Ende Soll"
+    );
+    if (!confirmDo) return;
+
+    try {
+      await withPageLoading(async () => {
+        await api.patch(`/projects/${id}/tasks/bulk`, {
+          filters: {
+            gewerk: selectedGewerke,
+            status: statusFilter,
+            startDate: startDateFilter || null,
+            endDate: endDateFilter || null,
+            delayed: showOnlyDelayed || null,
+            taskName: taskNameFilter || null,
+            topIds: selectedTopIds,
+            ebenen: selectedEbenen,
+            stiegen: selectedStiegen,
+            bauteile: selectedBauteile,
+            activities: selectedActivities,
+            processModels: selectedProcessModels,
+          },
+          update: {
+            start_ist: "__COPY__start_soll",
+            end_ist: "__COPY__end_soll",
+            status: "done",
+          },
+        });
+        await loadTimeline();
+        alert("Gefilterte Aufgaben wurden als 'Fertig' markiert.");
+      });
+    } catch (err) {
+      console.error("bulk fertig error:", err);
+      alert("Fehler beim Markieren der Aufgaben als 'Fertig'.");
+    }
   }
 
   const makeResourceLabelNode = (title: string, path: string) => {
@@ -841,13 +895,32 @@ const TaskCalendar = () => {
             isStructureFiltered ? "Strukturfilter ●" : "Strukturfilter",
             isActivityFiltered ? "Aktivität ●" : "Aktivität",
             isProcessModelFiltered ? "Prozessmodell ●" : "Prozessmodell",
-            "⏭ Zeitsprung",
             "Reset alle Filter",
           ]}
         />
 
         {/* desna strana: ➕ Sub + brojači (modern look) */}
         <div className="ml-4 flex items-center gap-3 print:hidden">
+          <button
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-3 py-1.5 text-white text-sm font-medium shadow-sm ring-1 ring-emerald-700/30 hover:bg-emerald-700 active:bg-emerald-800 transition"
+            onClick={markFilteredTasksAsDone}
+            title="Alle gefilterten Aufgaben als 'Fertig' markieren"
+            aria-label="Fertigstellen"
+          >
+            <span className="text-base leading-none">✅</span>
+            <span>Fertig</span>
+          </button>
+
+          <button
+            className="inline-flex items-center gap-2 rounded-full bg-amber-600 px-3 py-1.5 text-white text-sm font-medium shadow-sm ring-1 ring-amber-700/30 hover:bg-amber-700 active:bg-amber-800 transition"
+            onClick={() => setActiveTab("⏭ Zeitsprung")}
+            title="Zeitraum überspringen"
+            aria-label="Zeitsprung"
+          >
+            <span className="text-base leading-none">⏭</span>
+            <span>Zeitsprung</span>
+          </button>
+
           <button
             className="inline-flex items-center gap-2 rounded-full bg-cyan-600 px-3 py-1.5 text-white text-sm font-medium shadow-sm ring-1 ring-cyan-700/30 hover:bg-cyan-700 active:bg-cyan-800 transition"
             onClick={() => setSubOpen(true)}
@@ -1105,15 +1178,15 @@ const TaskCalendar = () => {
                 ? mapToApiPayload(u)
                 : {
                     task: u.title ?? "",
-                    subOptions: subOptions,
                     beschreibung: u.beschreibung ?? "",
-                    status: u.status ?? "offen",
+                    status: computeStatusFromIst(u),
                     start_soll: u.start_soll ?? null,
                     end_soll: u.end_soll ?? null,
                     start_ist: u.start_ist ?? null,
                     end_ist: u.end_ist ?? null,
                     sub_id: u.sub_id ?? null,
                   };
+
 
               await api.put(`/tasks/${u.id}`, payload, {
                 meta: { showLoader: false },
@@ -1129,7 +1202,7 @@ const TaskCalendar = () => {
                 ev.setExtendedProp("start_ist", u.start_ist);
                 ev.setExtendedProp("end_ist", u.end_ist);
                 ev.setExtendedProp("beschreibung", u.beschreibung);
-                ev.setExtendedProp("status", u.status);
+                ev.setExtendedProp("status", payload.status);
                 if (u.sub_id !== undefined) {
                   ev.setExtendedProp("sub_id", u.sub_id);
                   const subLabel =
@@ -1143,7 +1216,7 @@ const TaskCalendar = () => {
                 const i = prev.findIndex((t) => String(t.id) === String(u.id));
                 if (i < 0) return prev;
                 const copy = prev.slice();
-                copy[i] = { ...copy[i], ...u };
+                copy[i] = { ...copy[i], ...u, status: payload.status };
                 return copy;
               });
             } catch (err) {

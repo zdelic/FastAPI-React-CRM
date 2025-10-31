@@ -83,7 +83,7 @@ const groupByGewerk = (
     { gewerk: string; done: number; in_progress: number; offen: number }
   >();
   for (const r of rows) {
-    const key = (r.gewerk || "").trim();
+    const key = (r.gewerk ?? "").toString().trim() || "Allgemein";
     const cur = map.get(key);
     if (cur) {
       cur.done += r.done;
@@ -93,8 +93,7 @@ const groupByGewerk = (
       map.set(key, { ...r, gewerk: key });
     }
   }
-  // izbaci prazne nazive (ako ih ima)
-  return [...map.values()].filter((r) => r.gewerk && r.gewerk.length > 0);
+  return [...map.values()];
 };
 /** --------------------------------------------- */
 
@@ -104,9 +103,7 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
   className,
 }) => {
   const wrapperClass = className ?? "col-span-2 space-y-8";
-  const [untilDate, setUntilDate] = useState<string>(() =>
-    formatDate(new Date())
-  );
+  const [untilDate, setUntilDate] = useState<string>("");
   const [data, setData] = useState<ProjectStats>(
     stats || {
       total: 0,
@@ -137,8 +134,9 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
       setErr(null);
       try {
         const res = await api.get(`/projects/${projectId}/stats`, {
-          params: { until: untilDate },
+          params: untilDate ? { until: untilDate } : undefined,
         });
+        
         if (!cancelled) {
           const s = res.data || {};
           const rawByGewerk = Array.isArray(s.by_gewerk) ? s.by_gewerk : [];
@@ -247,6 +245,7 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
                   value={untilDate}
                   onChange={(e) => setUntilDate(e.target.value)}
                   className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-gray-100 pr-10"
+                  placeholder="—"
                 />
                 <button
                   type="button"
@@ -263,6 +262,24 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
                 </button>
               </div>
             </label>
+
+            {/* NOVO: prečice */}
+            <button
+              type="button"
+              className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
+              onClick={() => setUntilDate(formatDate(new Date()))}
+              title="Bis heute"
+            >
+              Heute
+            </button>
+            <button
+              type="button"
+              className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
+              onClick={() => setUntilDate("")}
+              title="Alle Daten (ohne Stichtag)"
+            >
+              Alle
+            </button>
           </div>
         </div>
 
@@ -356,8 +373,11 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
               <div className="bg-black/20 p-4 rounded-xl shadow-inner border border-slate-700">
                 <h4 className="text-center mb-2 text-sm text-gray-300">
                   📈 Kreisdiagramm
-                  {view.scopeLabel ? ` — ${view.scopeLabel}` : ""} (bis{" "}
-                  {formatDDMMYYYY(untilDate)})
+                  {view.scopeLabel ? ` — ${view.scopeLabel}` : ""} (
+                  {untilDate
+                    ? `bis ${formatDDMMYYYY(untilDate)}`
+                    : "ohne Stichtag"}
+                  )
                 </h4>
 
                 <Pie

@@ -156,10 +156,15 @@ async def generate_tasks(project_id: int, request: Request, db: Session = Depend
 
         # Početni datum za ovaj TOP:
         # 1) mapa iz frontenda  2) project.start_date  3) today
-        base_date = _to_date(start_map_top.get(str(top.id))) \
-            or _to_date(getattr(project, "start_date", None)) \
-            or date.today()
-        current_date = next_workday(base_date)  # ⬅️ start nikad na vikend
+        # Početni datum – samo ako je iz mape; inače preskoči TOP
+        base_str = start_map_top.get(str(top.id))
+        if not base_str:
+            continue  # bez datuma -> ne generiraj ništa za ovaj TOP
+
+        base_date = _to_date(base_str)
+        if not base_date:
+            continue
+        current_date = next_workday(base_date)      
 
 
         # Kreiraj taskove po redu

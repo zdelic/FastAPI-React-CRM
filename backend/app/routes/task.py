@@ -262,23 +262,50 @@ async def sync_tasks(project_id: int, request: Request, db: Session = Depends(ge
     if not project:
         raise HTTPException(status_code=404, detail="Projekt nicht gefunden")
 
-    # 1) pročitaj mapu datuma iz bodyja
+    # 1) pročitaj body
     try:
         payload = await request.json()
     except Exception:
         payload = {}
     start_map = (payload or {}).get("start_map") or {}
     start_map_top: dict[str, str] = (start_map or {}).get("top") or {}
+    filters = (payload or {}).get("filters") or {}
+    purge_top_ids = (payload or {}).get("purge_top_ids") or []
+    top_ids = filters.get("topIds") or []
 
-    # 2) svi topovi u projektu
-    tops = (
+    # 2) svi topovi u projektu (suženo po filterima)
+    tops_q = (
         db.query(Top)
         .join(Ebene)
         .join(Stiege)
         .join(Bauteil)
         .filter(Bauteil.project_id == project_id)
-        .all()
     )
+    if top_ids:
+        try:
+            top_ids = [int(x) for x in top_ids]
+        except Exception:
+            pass
+        tops_q = tops_q.filter(Top.id.in_(top_ids))
+    tops = tops_q.all()
+    # ograniči purge na već filtrirane TOP-ove (sigurnosna brana)
+    allowed_top_ids = {t.id for t in tops}
+    # ne purgaj nikad one koji imaju datum u start_map_top
+    safe_purge_ids = [
+        tid for tid in purge_top_ids
+        if tid in allowed_top_ids and str(tid) not in start_map_top
+    ]
+
+
+    # PURGE: obriši sve taskove za topove bez datuma (ili kojima je datum obrisan)
+    if safe_purge_ids:
+        db.query(Task).filter(
+            Task.project_id == project_id,
+            Task.top_id.in_(safe_purge_ids)
+        ).delete(synchronize_session=False)
+        db.commit()
+
+
 
     created_tasks: list[Task] = []
 
@@ -287,38 +314,35 @@ async def sync_tasks(project_id: int, request: Request, db: Session = Depends(ge
         if not model:
             continue
 
-        # postojeći taskovi za ovaj top
         existing_tasks = db.query(Task).filter_by(top_id=top.id).all()
         existing_task_map = {t.process_step_id: t for t in existing_tasks}
 
-        # 3) bazni datum: iz mape → project.start_date → today
+        # 3) bazni datum
         base_str = start_map_top.get(str(top.id))
-        base_date = None
-        if base_str:
-            try: base_date = date.fromisoformat(base_str[:10])
-            except Exception: base_date = None
-        if base_date is None:
-            base_date = project.start_date or date.today()
-        current_date = next_workday(base_date)  # ⬅️
+        if not base_str:
+            # NEMA datuma → preskoči generiranje za ovaj TOP (ne koristi project.start_date!)
+            continue
+
+        try:
+            base_date = date.fromisoformat(base_str[:10])
+        except Exception:
+            # nevažeći format → isto preskoči
+            continue
+
+        current_date = next_workday(base_date)
 
 
-        # 4) koraci po redu
-        steps = sorted(
-            model.steps,
-            key=lambda s: (s.order if s.order is not None else s.id)
-        )
+        # 4) generisanje taskova po koracima
+        steps = sorted(model.steps, key=lambda s: (s.order if s.order is not None else s.id))
         expected_step_ids = {s.id for s in steps}
 
         for step in steps:
             task = existing_task_map.get(step.id)
-
-            duration   = step.duration_days or 1
-            start_soll = next_workday(current_date)         # ⬅️
-            end_soll   = add_workdays(start_soll, duration) # ⬅️
-
+            duration = step.duration_days or 1
+            start_soll = next_workday(current_date)
+            end_soll = add_workdays(start_soll, duration)
 
             if not task:
-                # kreiraj novi
                 task = Task(
                     top_id=top.id,
                     process_step_id=step.id,
@@ -331,7 +355,6 @@ async def sync_tasks(project_id: int, request: Request, db: Session = Depends(ge
                 db.flush()
                 created_tasks.append(task)
             else:
-                # ažuriraj datume samo ako task nije započet
                 if task.start_ist is None:
                     changed = False
                     if task.start_soll != start_soll:
@@ -343,12 +366,10 @@ async def sync_tasks(project_id: int, request: Request, db: Session = Depends(ge
                     if changed:
                         db.add(task)
 
-            # pomjeri samo ako nije paralelan
             if not getattr(step, "parallel", False):
-                current_date = next_workday(end_soll + timedelta(days=1))  # ⬅️
+                current_date = next_workday(end_soll + timedelta(days=1))
 
-
-        # 5) ukloni taskove koji više nisu u modelu (ako nisu započeti)
+        # 5) ukloni taskove koji više nisu u modelu
         for old in existing_tasks:
             if old.process_step_id not in expected_step_ids and old.start_ist is None:
                 db.delete(old)
@@ -360,6 +381,7 @@ async def sync_tasks(project_id: int, request: Request, db: Session = Depends(ge
         details={"project_id": project_id, "created": [t.id for t in created_tasks]},
     )
     return created_tasks
+
 
 
 
@@ -489,9 +511,11 @@ def bulk_update_tasks(project_id: int, request: Request, body: BulkBody, db: Ses
     if body.ids:
         q = q.filter(Task.id.in_(body.ids))
 
-    # Po filterima (isto kao u /tasks-timeline)
+    # Po filterima (isto kao u /tasks-timeline) + topIds
     f = body.filters
     if f:
+        if getattr(f, "topIds", None):
+            q = q.filter(Task.top_id.in_(f.topIds))  # ⬅️ NOVO
         if f.gewerk:
             q = q.join(Task.process_step).join(ProcessStep.gewerk).filter(Gewerk.name.in_(f.gewerk))
         if f.status:
@@ -529,87 +553,79 @@ def bulk_update_tasks(project_id: int, request: Request, body: BulkBody, db: Ses
         if f.processModels:
             q = q.join(Task.process_step).join(ProcessStep.model).filter(ProcessModel.name.in_(f.processModels))
 
-    # SET sub_id (ako je poslat)
-    if body.update and body.update.sub_id is not None:
-        # 1) validiraj "sub" kao User sa ulogom sub
-        sub_user = db.query(User).get(body.update.sub_id)
-        if not sub_user:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subunternehmen (User) nicht gefunden")
-        if (getattr(sub_user, "role", None) or "").lower() != "sub":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Angegebener Benutzer ist kein Subunternehmen")
+    # Ako nema update dijela – nema posla
+    if not body.update:
+        return {"betroffen": 0}
 
-        # 2) uzmi ID-jeve pogođenih taskova
+    u = body.update
+    updated_ids: list[int] = []
+
+    # 1) Ako se mijenja samo sub_id (tvoj postojeći slučaj)
+    if u.sub_id is not None and all(getattr(u, k, None) is None for k in ("start_ist", "end_ist", "status")):
+        sub_user = db.query(User).get(u.sub_id)
+        if not sub_user:
+            raise HTTPException(status_code=404, detail="Subunternehmen (User) nicht gefunden")
+        if (getattr(sub_user, "role", None) or "").lower() != "sub":
+            raise HTTPException(status_code=400, detail="Angegebener Benutzer ist kein Subunternehmen")
         ids = [row[0] for row in q.with_entities(Task.id).distinct().all()]
         if not ids:
             return {"betroffen": 0}
-
-        # 3) update svih odabranih taskova
-        db.query(Task).filter(Task.id.in_(ids)).update(
-            {"sub_id": body.update.sub_id},
-            synchronize_session=False
-        )
+        db.query(Task).filter(Task.id.in_(ids)).update({"sub_id": u.sub_id}, synchronize_session=False)
         db.commit()
-
-        # 4) pripremi listu taskova za log (limit da payload ne eksplodira)
-        N = 100
-        tasks_for_log = (
-            db.query(Task)
-            .options(
-                joinedload(Task.process_step),
-                joinedload(Task.top).joinedload(Top.ebene).joinedload(Ebene.stiege).joinedload(Stiege.bauteil),
-            )
-            .filter(Task.id.in_(ids))
-            .limit(N)
-            .all()
-        )
-
-        def _task_label(t: Task):
-            name = getattr(getattr(t, "process_step", None), "activity", None) or getattr(t, "name", None) or ""
-            parts = []
-            top = getattr(t, "top", None)
-            if top:
-                ebene = getattr(top, "ebene", None)
-                stiege = getattr(ebene, "stiege", None) if ebene else None
-                bauteil = getattr(stiege, "bauteil", None) if stiege else None
-                parts = [
-                    getattr(bauteil, "name", None),
-                    getattr(stiege, "name", None),
-                    getattr(ebene, "name", None),
-                    getattr(top, "name", None),
-                ]
-            loc = " • ".join([p for p in parts if p])
-            return {"id": t.id, "name": name, "location": loc}
-
-        tasks_list = [_task_label(t) for t in tasks_for_log]
-
-        # 5) dohvat imena projekta (za kolonu "Projekt" i details)
-        proj = db.query(Project).get(project_id)
-        proj_name = getattr(proj, "name", None) if proj else None
-
-        # 6) log sa projektom, sub imenom i listom taskova
-        log_protocol(
-            db, request,
-            action="task.bulk.assign_sub", ok=True, status_code=200,
-            details={
-                "project_id": project_id,
-                "project_name": proj_name,
-                "sub_id": body.update.sub_id,
-                "sub_name": getattr(sub_user, "name", None) or getattr(sub_user, "email", None),
-                "affected": len(ids),
-                "tasks": tasks_list,  # [{id, name, location}, ...]
-                "filters": body.filters.model_dump() if body.filters else None,
-            },
-        )
-
         return {"betroffen": len(ids)}
 
-    # Ako se ništa ne ažurira (trenutno podržavamo samo sub_id), vrati 0
-    return {"betroffen": 0}
+    # 2) U suprotnom: podrži start_ist / end_ist / status (uklj. __COPY__*)
+    tasks = q.all()
+    for t in tasks:
+        changed = False
+
+        # start_ist
+        if getattr(u, "start_ist", None) is not None:
+            if isinstance(u.start_ist, str) and u.start_ist == "__COPY__start_soll":
+                if t.start_soll:
+                    t.start_ist = t.start_soll
+                    changed = True
+            else:
+                d = _to_date(u.start_ist)
+                if d:
+                    t.start_ist = d
+                    changed = True
+
+        # end_ist
+        if getattr(u, "end_ist", None) is not None:
+            if isinstance(u.end_ist, str) and u.end_ist == "__COPY__end_soll":
+                if t.end_soll:
+                    t.end_ist = t.end_soll
+                    changed = True
+            else:
+                d = _to_date(u.end_ist)
+                if d:
+                    t.end_ist = d
+                    changed = True
+
+        # status
+        if getattr(u, "status", None) is not None:
+            t.status = u.status
+            changed = True
+
+        # sub_id (kombinovano sa gore navedenim)
+        if getattr(u, "sub_id", None) is not None:
+            t.sub_id = u.sub_id
+            changed = True
+
+        if changed:
+            updated_ids.append(t.id)
+            db.add(t)
+
+    db.commit()
+    return {"betroffen": len(updated_ids), "ids": updated_ids}
+
 
 
 # ===== Zeitsprung / skip-window ============================================
 
 class SkipWindowFilters(BaseModel):
+    topIds: Optional[list[int]] = None 
     top: Optional[list[str]] = None
     ebene: Optional[list[str]] = None
     stiege: Optional[list[str]] = None
@@ -641,6 +657,23 @@ def _count_weekend_days(start: date, end: date) -> int:
             wend += 1
     return wend
 
+def _overlaps(a_start: date | None, a_end: date | None, b_start: date, b_end: date) -> bool:
+    if not a_start or not a_end:
+        return False
+    # intervali inkluzivni po danima
+    return not (a_end < b_start or a_start > b_end)
+
+def _next_monday(d: date) -> tuple[date, int]:
+    """
+    Ako d padne na vikend, vraća prvi ponedjeljak i koliko je dana pomaknuto.
+    Inače vraća (d, 0).
+    """
+    if d.weekday() < 5:
+        return d, 0
+    # subota=5 -> +2, nedjelja=6 -> +1
+    add = 7 - d.weekday()
+    return d + timedelta(days=add), add
+
 @router.post("/projects/{project_id}/schedule/skip-window")
 def schedule_skip_window(
     project_id: int,
@@ -651,46 +684,168 @@ def schedule_skip_window(
     if payload.end < payload.start:
         raise HTTPException(status_code=400, detail="Ende vor Start")
 
-    # 1) koliko dana skačemo
+    # 1) TAČAN broj dana prozora (inkluzivno) — bez oduzimanja vikenda
     shift_days = (payload.end - payload.start).days + 1
-    if payload.skip_weekends:
-        shift_days -= _count_weekend_days(payload.start, payload.end)
-        if shift_days < 0:
-            shift_days = 0
-    if shift_days == 0:
+    if shift_days <= 0:
         return {"moved": 0, "days_shifted": 0}
 
-    # 2) bazni query svih taskova projekta
+    # helper: ako padne na vikend, pomjeri na ponedjeljak i vrati koliko je pomaknuto
+    def _bump_if_weekend(d: date) -> tuple[date, int]:
+        wd = d.weekday()  # 0=Mon ... 5=Sat 6=Sun
+        if wd < 5:
+            return d, 0
+        add = 7 - wd        # Sat->2, Sun->1
+        return d + timedelta(days=add), add
+
+    # 2) bazni query
     q = db.query(Task).filter(Task.project_id == project_id)
 
-    # 3) (opcionalni) filteri – uključi samo ako koristiš te kolone
+    # 3) filteri (uklj. topIds)
     f = payload.filters
     if f:
-        if f.top:
+        if getattr(f, "topIds", None):
+            q = q.filter(Task.top_id.in_(f.topIds))
+        if getattr(f, "top", None):
             q = q.join(Task.top).filter(Top.name.in_(f.top))
-        if f.ebene:
+        if getattr(f, "ebene", None):
             q = q.join(Task.top).join(Top.ebene).filter(Ebene.name.in_(f.ebene))
-        if f.stiege:
+        if getattr(f, "stiege", None):
             q = q.join(Task.top).join(Top.ebene).join(Ebene.stiege).filter(Stiege.name.in_(f.stiege))
-        if f.bauteil:
+        if getattr(f, "bauteil", None):
             q = q.join(Task.top).join(Top.ebene).join(Ebene.stiege).join(Stiege.bauteil).filter(Bauteil.name.in_(f.bauteil))
-        if f.gewerk:
+        if getattr(f, "gewerk", None):
             q = q.join(Task.process_step).join(ProcessStep.gewerk).filter(Gewerk.name.in_(f.gewerk))
-        if f.activity:
+        if getattr(f, "activity", None):
             q = q.join(Task.process_step).filter(ProcessStep.activity.in_(f.activity))
-        if f.processModel:
+        if getattr(f, "processModel", None):
             q = q.join(Task.process_step).join(ProcessStep.model).filter(ProcessModel.name.in_(f.processModel))
 
     moved = 0
     for t in q.all():
         s = t.start_soll
         e = t.end_soll
+        if not s and not e:
+            continue
+
+        # pomjeramo samo one koji PREKLAPAJU prozor (ostavi ovako ako ti ovakav scope odgovara)
         if _ranges_overlap(s, e, payload.start, payload.end):
-            if s is not None:
-                t.start_soll = s + timedelta(days=shift_days)
-            if e is not None:
-                t.end_soll = e + timedelta(days=shift_days)
+            ns = s + timedelta(days=shift_days) if s else None
+            ne = e + timedelta(days=shift_days) if e else None
+
+            # poslije pomaka: ako treba preskočiti vikend, gurni start na ponedjeljak
+            if payload.skip_weekends and ns is not None:
+                ns2, extra = _bump_if_weekend(ns)
+                if extra:
+                    ns = ns2
+                    if ne is not None:
+                        ne = ne + timedelta(days=extra)
+
+            if ns is not None:
+                t.start_soll = ns
+            if ne is not None:
+                t.end_soll = ne
             moved += 1
 
     db.commit()
     return {"moved": moved, "days_shifted": shift_days}
+
+
+
+@router.get("/projects/{project_id}/stats")
+def project_stats(
+    project_id: int,
+    until: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+    response: Response = None,
+):
+    if response is not None:
+        response.headers["X-Stats-Impl"] = "task.py-v2"  # 👈 marker
+    q = (
+        db.query(Task)
+        .join(Task.process_step, isouter=True)
+        .join(ProcessStep.gewerk, isouter=True)
+        .options(
+            joinedload(Task.process_step).joinedload(ProcessStep.gewerk),
+            load_only(
+                Task.id, Task.project_id, Task.start_soll, Task.end_soll,
+                Task.start_ist, Task.end_ist
+            ),
+        )
+        .filter(Task.project_id == project_id)
+    )
+    tasks: list[Task] = q.all()
+
+    DEFAULT_G = "Allgemein"
+
+    # ⚠️ fallback na "Allgemein" umjesto "" (prazno)
+    def gname_of(t: Task) -> str:
+        try:
+            name = (t.process_step.gewerk.name or "").strip()
+        except Exception:
+            name = ""
+        return name or DEFAULT_G
+
+    # skup SVIH gewerka u projektu – uvijek formiraj listu lijevo
+    all_gewerke: set[str] = set()
+    for t in tasks:
+        all_gewerke.add(gname_of(t))  # ⚠️ već normalizirano
+
+    total = done = in_prog = offen = 0
+    by_gewerk: dict[str, dict] = {}
+
+    for t in tasks:
+        s_soll, e_soll = t.start_soll, t.end_soll
+        s_ist,  e_ist  = t.start_ist,  t.end_ist
+
+        if until:
+            # preskoči čisto buduće taskove bez IST-a
+            if (not s_ist) and (not e_ist) and (s_soll and s_soll > until):
+                continue
+
+            if e_ist and e_ist <= until:
+                cls = "done"
+            elif s_ist and s_ist <= until and (not e_ist or e_ist > until):
+                cls = "in_progress"
+            else:
+                if (s_soll is None) or (s_soll and s_soll <= until):
+                    cls = "offen"
+                else:
+                    continue
+        else:
+            if e_ist:
+                cls = "done"
+            elif s_ist and not e_ist:
+                cls = "in_progress"
+            else:
+                cls = "offen"
+
+        total += 1
+        if cls == "done":
+            done += 1
+        elif cls == "in_progress":
+            in_prog += 1
+        else:
+            offen += 1
+
+        gname = gname_of(t)  # ⚠️ uvijek normalizirano ime
+        if gname not in by_gewerk:
+            by_gewerk[gname] = {"gewerk": gname, "done": 0, "in_progress": 0, "offen": 0}
+        by_gewerk[gname][cls] += 1
+
+    # ⚠️ osiguraj 0/0/0 zapise i za gewerke bez taskova u “until” rezu
+    for gname in sorted(all_gewerke):
+        by_gewerk.setdefault(gname, {"gewerk": gname, "done": 0, "in_progress": 0, "offen": 0})
+
+    percent_done = round((done / total) * 100, 2) if total else 0.0
+
+    # (po želji sortiraj po imenu)
+    by_gewerk_list = sorted(by_gewerk.values(), key=lambda r: r["gewerk"].lower())
+
+    return {
+        "total": total,
+        "done": done,
+        "in_progress": in_prog,
+        "offen": offen,
+        "percent_done": percent_done,
+        "by_gewerk": by_gewerk_list,  # ⚠️ nikad prazni string kao ime
+    }

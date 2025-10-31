@@ -20,6 +20,8 @@ import {
   Save,
 } from "lucide-react";
 
+import { useLoading } from "../context/LoadingContext";
+
 type Role = "admin" | "bauleiter" | "polier" | "sub";
 
 function getRoleFromToken(): Role | null {
@@ -64,7 +66,7 @@ const Dashboard: React.FC = () => {
   const [editStart, setEditStart] = useState("");
   const [editFile, setEditFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
-
+  const { show, hide } = useLoading();
   const openEdit = (p: any) => {
     setEditing(p);
     setEditName(p.name ?? "");
@@ -407,74 +409,77 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between">
-            <button
-              onClick={handleCreate}
-              disabled={creating}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <PlusCircle size={18} /> Projekt erstellen
-            </button>
-
+              <button
+                onClick={handleCreate}
+                disabled={creating}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <PlusCircle size={18} /> Projekt erstellen
+              </button>
             </div>
           </div>
         </div>
 
-        
-
-          <div className="grid md:grid-cols-2 gap-6">
-            {projects.map((p) => (
+        <div className="grid md:grid-cols-2 gap-6">
+          {projects.map((p) => (
+            <div
+              key={p.id}
+              onClick={() => {
+                show(); // prikaže globalni loader
+                setTimeout(() => {
+                  hide();
+                  navigate(`/projekt/${p.id}`);
+                });
+              }}
+              className="relative group rounded-2xl overflow-hidden shadow-xl cursor-pointer transform hover:scale-[1.02] transition duration-300 min-h-[220px]"
+            >
+              {/* Background image */}
               <div
-                key={p.id}
-                onClick={() => navigate(`/projekt/${p.id}`)}
-                className="relative group rounded-2xl overflow-hidden shadow-xl cursor-pointer transform hover:scale-[1.02] transition duration-300 min-h-[220px]"
-              >
-                {/* Background image */}
-                <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url('${
-                      p.image_url || "/images/Startseite-Winarsky_01.png"
-                    }')`,
-                  }}
-                />
+                className="absolute inset-0 bg-cover bg-center"
+                style={{
+                  backgroundImage: `url('${
+                    p.image_url || "/images/Startseite-Winarsky_01.png"
+                  }')`,
+                }}
+              />
 
-                {/* Dark gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent group-hover:via-black/70 transition duration-300"></div>
+              {/* Dark gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent group-hover:via-black/70 transition duration-300"></div>
 
-                {/* Content */}
-                <div className="relative z-10 p-6 text-white flex flex-col h-full justify-between">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-2xl font-bold mb-1 drop-shadow-lg">
-                        {p.name}
-                      </h3>
-                      <p className="text-base font-medium text-gray-100 drop-shadow-sm line-clamp-3">
-                        {p.description}
-                      </p>
-                    </div>
-
-                    {isAdmin && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEdit(p);
-                        }}
-                        className="shrink-0 inline-flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 p-2 backdrop-blur transition"
-                        title="Projekt-Einstellungen"
-                      >
-                        <Settings size={18} />
-                      </button>
-                    )}
+              {/* Content */}
+              <div className="relative z-10 p-6 text-white flex flex-col h-full justify-between">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-1 drop-shadow-lg">
+                      {p.name}
+                    </h3>
+                    <p className="text-base font-medium text-gray-100 drop-shadow-sm line-clamp-3">
+                      {p.description}
+                    </p>
                   </div>
 
-                  <div className="flex items-center text-sm text-gray-200 mt-4 font-semibold">
-                    <CalendarDays size={22} className="mr-2" />
-                    {formatDate(p.start_date) || "Kein Datum"}
-                  </div>
+                  {isAdmin && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(p);
+                      }}
+                      className="shrink-0 inline-flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 border border-white/20 p-2 backdrop-blur transition"
+                      title="Projekt-Einstellungen"
+                    >
+                      <Settings size={18} />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center text-sm text-gray-200 mt-4 font-semibold">
+                  <CalendarDays size={22} className="mr-2" />
+                  {formatDate(p.start_date) || "Kein Datum"}
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
+        </div>
       </div>
       {editOpen && editing && (
         <div
@@ -587,14 +592,13 @@ const Dashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={handleDeleteProject}
-              disabled={saving}
-              className="inline-flex items-center gap-2 text-red-600 hover:text-white border border-red-600 hover:bg-red-600 rounded-xl px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Trash2 size={18} /> Projekt löschen
-            </button>
-
+              <button
+                onClick={handleDeleteProject}
+                disabled={saving}
+                className="inline-flex items-center gap-2 text-red-600 hover:text-white border border-red-600 hover:bg-red-600 rounded-xl px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Trash2 size={18} /> Projekt löschen
+              </button>
 
               <div className="flex items-center gap-2">
                 <button
@@ -613,7 +617,6 @@ const Dashboard: React.FC = () => {
                 >
                   <Save size={18} /> Speichern
                 </button>
-
               </div>
             </div>
           </div>
