@@ -117,3 +117,8 @@ export async function fetchStructure(
 
 // (po želji) re-export User tipa ako ti treba drugdje
 export type { User } from "./users";
+
+export async function getProjectName(projectId: number): Promise<string> {
+  const { data } = await api.get(`/projects/${projectId}`);
+  return data.name;
+}

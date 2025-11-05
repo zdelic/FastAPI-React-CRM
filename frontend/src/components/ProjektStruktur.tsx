@@ -406,6 +406,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
         "Es werden NUR die aktuell gefilterten/angezeigten Einheiten synchronisiert. " +
         "Die Aufgaben werden gemäß dem zugewiesenen Prozessmodell und den Startdaten neu aufgebaut. " +
         "Bereits begonnene Aufgaben (mit Start Ist) werden NICHT verändert und bleiben im Timeline.\n\n" +
+        "Übersprungene Termine mit der Funktion „Zeitsprung“ werden storniert..\n\n" +
         "Möchten Sie fortfahren?"
     );
 
@@ -465,7 +466,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
 
       // Ako baš NEMA nijednog TOP-a vidljivog, nema smisla zvati backend
       if (topIdsToSync.length === 0) {
-        showFlash("Nema vidljivih jedinica za sinkronizaciju.", "error");
+        showFlash("Keine sichtbaren Einheiten zum Synchronisieren.", "error");
         setSyncing(false);
         return;
       }
@@ -474,7 +475,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
       // Backend će preskočiti sve jer nema datuma za ugraditi (neće dirati TOP-ove bez datuma).
       if (Object.keys(topStartMap).length === 0) {
         console.debug(
-          "[SYNC] start_map je prazan – sinkroniziram samo promjene PM-a, bez datuma."
+          "[SYNC] start_map ist leer – ich synchronisiere nur PM-Änderungen, kein Datum.."
         );
       }
 

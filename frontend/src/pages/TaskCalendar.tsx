@@ -55,7 +55,7 @@ const TaskCalendar = () => {
   function iso(d: Date) {
     return d.toISOString().split("T")[0];
   }
-
+  const { projectId } = useParams<{ projectId: string }>();
   const { id } = useParams<{ id: string }>();
   const [events, setEvents] = useState<any[]>([]);
   const [resources, setResources] = useState<any[]>([]);
@@ -862,6 +862,16 @@ const TaskCalendar = () => {
         {/* dugme */}
         <div className="mb-2 flex items-center gap-2">
           <button
+            type="button"
+            className="px-3 py-2 rounded bg-green-300 text-gray-900 hover:bg-gray-300"
+            onClick={() =>
+              navigate(`/projekt/${id}/struktur-timeline?level=ebene`)
+            }
+            title="Struktur-Timeline"
+          >
+            Struktur-Timeline
+          </button>
+          <button
             className="px-3 py-2 rounded bg-gray-200 text-gray-900 hover:bg-gray-300"
             onClick={() => navigate("/dashboard")}
           >
@@ -1134,7 +1144,6 @@ const TaskCalendar = () => {
                             delayed: showOnlyDelayed || null,
                             taskName: taskNameFilter || null,
                             topIds: selectedTopIds,
-                            tops: selectedTopIds,
                             ebenen: selectedEbenen,
                             stiegen: selectedStiegen,
                             bauteile: selectedBauteile,
@@ -1186,7 +1195,6 @@ const TaskCalendar = () => {
                     end_ist: u.end_ist ?? null,
                     sub_id: u.sub_id ?? null,
                   };
-
 
               await api.put(`/tasks/${u.id}`, payload, {
                 meta: { showLoader: false },

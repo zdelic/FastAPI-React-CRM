@@ -11,6 +11,10 @@ import {
 } from "chart.js";
 import api from "../api/axios";
 import { Calendar as CalendarIcon } from "lucide-react";
+import CustomDatePicker from "../components/CustomDatePicker";
+import { useNavigate } from "react-router-dom";
+
+
 
 ChartJS.register(
   ArcElement,
@@ -114,10 +118,9 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
       by_gewerk: [],
     }
   );
-
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const dateRef = useRef<HTMLInputElement>(null);
   // selekcija gewerka (null = svi)
   const [selectedGewerk, setSelectedGewerk] = useState<string | null>(null);
 
@@ -236,32 +239,14 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
                 Alle Gewerke
               </button>
             )}
-            <label className="flex items-center gap-2 text-sm">
-              <span className="text-gray-300">Bis Datum:</span>
-              <div className="relative">
-                <input
-                  ref={dateRef}
-                  type="date"
-                  value={untilDate}
-                  onChange={(e) => setUntilDate(e.target.value)}
-                  className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-gray-100 pr-10"
-                  placeholder="—"
-                />
-                <button
-                  type="button"
-                  onClick={() =>
-                    dateRef.current?.showPicker
-                      ? dateRef.current.showPicker()
-                      : dateRef.current?.focus()
-                  }
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white"
-                  aria-label="Datum wählen"
-                  title="Datum wählen"
-                >
-                  <CalendarIcon size={18} />
-                </button>
-              </div>
-            </label>
+            <div className="flex items-center gap-2 text-sm">
+              <CustomDatePicker
+                label="Bis Datum"
+                value={untilDate || null}
+                onChange={(v) => setUntilDate(v ?? "")}
+                variant="dark"
+              />
+            </div>
 
             {/* NOVO: prečice */}
             <button
@@ -275,10 +260,10 @@ const ProjektStatistik: React.FC<ProjektStatistikProps> = ({
             <button
               type="button"
               className="text-xs bg-slate-700 hover:bg-slate-600 px-2 py-1 rounded"
-              onClick={() => setUntilDate("")}
+              onClick={() => navigate(0)}
               title="Alle Daten (ohne Stichtag)"
             >
-              Alle
+              Reset
             </button>
           </div>
         </div>

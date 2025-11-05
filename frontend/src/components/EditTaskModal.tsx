@@ -80,6 +80,7 @@ const EditTaskModal: React.FC<Props> = React.memo(({ task, onSave, onDelete, onC
 
       try {
         await Promise.resolve(onSave(updated));
+        window.location.reload();
       } finally {
         setSaving(false);
       }

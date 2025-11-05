@@ -54,6 +54,7 @@ from app.routes import (
     generate_tasks,
     user,
 )
+from app.routes.task_structure import router as structure_router
 
 # Protokol (bez bindera)
 app.include_router(protocol.router)
@@ -70,6 +71,8 @@ app.include_router(user.router,           dependencies=[Depends(bind_user)])
 
 # Auth rute (bez bindera)
 app.include_router(auth.router, tags=["auth"])
+
+app.include_router(structure_router, dependencies=[Depends(bind_user)])
 
 # Omogući import UPLOAD_DIR iz drugih modula
 __all__ = ["app", "UPLOAD_DIR"]
