@@ -4,24 +4,33 @@ import axios, {
   type InternalAxiosRequestConfig,
 } from "axios";
 
-// 1) Base URL
-export const baseURL =
-  (import.meta as any)?.env?.VITE_API_URL || "http://localhost:8000";
+// 🔹 1) Jedan centralni API_URL – i za axios i za absoluteUrl
+// - Lokalno: REACT_APP_API_URL nije postavljen → pada na http://127.0.0.1:8000
+// - Na Vercel-u: REACT_APP_API_URL je postavljen → koristi Railway backend
+const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
-// 2) Loader bridge (App.tsx ga puni i smije ga “gasiti”)
+// (STARI KOD – možemo obrisati, jer CRA uopće ne koristi import.meta):
+// export const baseURL =
+//   (import.meta as any)?.env?.VITE_API_URL || "http://localhost:8000";
+
+// 🔹 2) Base URL koji koristi isti API_URL
+export const baseURL = API_URL;
+
+// 3) Loader bridge (App.tsx ga puni i smije ga “gasiti”)
 export const loaderBridge: {
   show?: () => void;
   hide?: () => void;
 } = {};
 
-// 3) Axios instanca
-const api = axios.create({
-  baseURL,
-  withCredentials: false,
-  timeout: 15000,
+// 4) Axios instanca
+export const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
 });
 
-// 4) Proširenje configa s hideLoader flagom
+// 5) Proširenje configa s hideLoader flagom
 declare module "axios" {
   export interface AxiosRequestConfig {
     hideLoader?: boolean;
@@ -31,7 +40,7 @@ declare module "axios" {
   }
 }
 
-// 5) Request interceptor (token + opcionalni loader)
+// 6) Request interceptor (token + opcionalni loader)
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     const token = localStorage.getItem("token");
@@ -54,7 +63,7 @@ api.interceptors.request.use(
   }
 );
 
-// 6) Response interceptor (zatvori loader + 401)
+// 7) Response interceptor (zatvori loader + 401)
 api.interceptors.response.use(
   (response) => {
     if (!response.config.hideLoader) {
@@ -81,7 +90,8 @@ api.interceptors.response.use(
   }
 );
 
-// 7) Helper za apsolutni URL (slike itd.)
+// 8) Helper za apsolutni URL (slike itd.)
+//    Sada koristi isti baseURL (API_URL) – radi i lokalno i na Vercel-u
 export const absoluteUrl = (path: string) => {
   if (!path) return "";
   if (path.startsWith("http")) return path;
