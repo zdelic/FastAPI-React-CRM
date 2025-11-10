@@ -27,15 +27,7 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 # app.add_middleware(TimingMiddleware)  # opcionalno
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://fast-api-react-crm.vercel.app",  # GLAVNI VERCEL DOMAIN
-        "https://fast-api-react-crm-git-main-zlatans-projects-8dd837ca.vercel.app",
-        "https://gerstl.vercel.app/",  # opcionalno, preview
-        # možeš ostaviti i stari preview ako još negdje koristiš:
-        # "https://fast-api-react-7smz1x5ve-zlatans-projects-8dd837ca.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
