@@ -28,7 +28,11 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
-     allow_origins=["http://localhost:3000", "http://localhost:5173"],
+     allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://fast-api-react-crm-git-main-zlatans-projects-8dd837ca.vercel.app",  # Vercel frontend
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

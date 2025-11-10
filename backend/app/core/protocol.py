@@ -14,7 +14,7 @@ from app.models.project import Project
 SENSITIVE = {"password","pass","token","authorization","secret","api_key","refresh_token","pin","otp"}
 
 def _task_location_dict(t) -> dict:
-    """Izvuci hijerarhiju Bauteil/Stiege/Ebene/Top iz taska (ako postoji)."""
+    """Extrahieren Sie die Hierarchie „Komponente/Treppe/Ebene/Oben“ aus der Aufgabe (falls vorhanden).."""
     loc = {}
     top = getattr(t, "top", None)
     if top:
@@ -39,7 +39,7 @@ def _norm(v):
 
 def compute_diff(model, updates: dict) -> dict:
     """
-    Vrati samo promijenjena polja: { field: {old: ..., new: ...}, ... }
+    Geben Sie nur die geänderten Felder zurück: { field: {old: ..., new: ...}, ... }
     """
     diff = {}
     for k, new in updates.items():
