@@ -5,8 +5,8 @@ import os
 from fastapi import FastAPI, Depends
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, engine
 from app.deps import bind_user
@@ -25,7 +25,6 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Middleware ---
 # app.add_middleware(TimingMiddleware)  # opcionalno
-app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.add_middleware(
     CORSMiddleware,
      allow_origins=[
@@ -38,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 
 # --- Static mounts (MONTAJ SAMO JEDNOM) ---
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
