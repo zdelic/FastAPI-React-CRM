@@ -27,7 +27,12 @@ STATIC_DIR.mkdir(parents=True, exist_ok=True)
 # app.add_middleware(TimingMiddleware)  # opcionalno
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+     allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "https://fast-api-react-crm.vercel.app",
+        "https://gerstl.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
