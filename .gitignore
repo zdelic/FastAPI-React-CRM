@@ -58,3 +58,10 @@ docker-compose.override.yml
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Root node_modules (ako se ikad opet pojavi)
+node_modules/
+
+# Windows metadata
+desktop.ini
+
