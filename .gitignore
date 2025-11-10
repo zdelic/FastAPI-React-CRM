@@ -1,31 +1,60 @@
-# --- for all ---
+# ======================
+# Global
+# ======================
 .DS_Store
 Thumbs.db
 *.log
 *.env
-.env
-*.sqlite
-*.sqlite3
-*.db
+*.pyc
+__pycache__/
+# *.sqlite3
+# *.db
 
-# --- Python / FastAPI ---
-backend/__pycache__/
-backend/**/*.pyc
-backend/.pytest_cache/
-backend/.mypy_cache/
-backend/.venv/
-backend/venv/
-backend/.coverage
-backend/coverage.xml
+# ======================
+# Python / FastAPI backend
+# ======================
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
 
-# lok. SQLite baze 
-backend/**/instance/
-backend/**/migrations/__pycache__/
+# Build / cache
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# --- Node / React ---
+# Editor / IDE
+.vscode/
+.idea/
+
+# ======================
+# React frontend
+# ======================
 frontend/node_modules/
-frontend/.cache/
-frontend/.eslintcache
 frontend/build/
-frontend/dist/
-frontend/coverage/
+frontend/.env
+frontend/.DS_Store
+
+# npm debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ======================
+# Docker
+# ======================
+*.pid
+*.seed
+*.bak
+*.swp
+docker-compose.override.yml
+
+# ======================
+# Misc
+# ======================
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
