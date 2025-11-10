@@ -43,8 +43,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
-# --- DB init ---
-Base.metadata.create_all(bind=engine)
+
 
 # --- Routers ---
 from app.routes import (
@@ -59,6 +58,7 @@ from app.routes import (
     generate_tasks,
     user,
 )
+
 from app.routes.task_structure import router as structure_router
 
 # Protokol (bez bindera)
@@ -76,6 +76,9 @@ app.include_router(user.router,           dependencies=[Depends(bind_user)])
 
 # Auth rute (bez bindera)
 app.include_router(auth.router, tags=["auth"])
+
+# --- DB init ---
+Base.metadata.create_all(bind=engine)
 
 app.include_router(structure_router, dependencies=[Depends(bind_user)])
 
