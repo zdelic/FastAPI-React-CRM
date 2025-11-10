@@ -31,7 +31,8 @@ app.add_middleware(
      allow_origins=[
         "http://localhost:3000",
         "http://localhost:5173",
-        "https://fast-api-react-crm-git-main-zlatans-projects-8dd837ca.vercel.app",  # Vercel frontend
+        "https://fast-api-react-crm-git-main-zlatans-projects-8dd837ca.vercel.app",
+        "https://fast-api-react-7smz1x5ve-zlatans-projects-8dd837ca.vercel.app",  # tvoj aktivni Vercel deployment
     ],
     allow_credentials=True,
     allow_methods=["*"],
