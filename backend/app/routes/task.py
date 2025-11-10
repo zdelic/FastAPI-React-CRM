@@ -178,6 +178,24 @@ def project_tasks_timeline(
     
     if processModel:
         q = q.join(Task.process_step).join(ProcessStep.model).filter(ProcessModel.name.in_(processModel))
+    
+    # 🔽🔽🔽 SORT 🔽🔽🔽
+    q = (
+        q.outerjoin(Task.top)
+         .outerjoin(Top.ebene)
+         .outerjoin(Ebene.stiege)
+         .outerjoin(Stiege.bauteil)
+         .order_by(
+             Bauteil.name.is_(None),  # prvo oni koji imaju bauteil
+             Bauteil.name,            # A, B, C...
+             Stiege.name.is_(None),
+             Stiege.name,             # Stiege 1, Stiege 2...
+             Ebene.name.is_(None),
+             Ebene.name,              # Ebene 1, Ebene 2...
+             Top.name                 # Top 1, Top 2, Top 10 (po abecedi/stringu)
+         )
+    )
+    # 🔼🔼🔼 End SORT 🔼🔼🔼
 
     q = q.execution_options(stream_results=True)
 

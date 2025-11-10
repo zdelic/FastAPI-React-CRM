@@ -108,3 +108,9 @@ code {
   font-size: 16px !important;
   font-weight: bold;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

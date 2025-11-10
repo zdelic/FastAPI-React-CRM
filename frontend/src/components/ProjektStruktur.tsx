@@ -758,6 +758,13 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
     return persisted?.start_soll ?? null;
   };
 
+  // Naturalno sortiranje po nazivu: Top1, Top2, Top10 / EG, OG1, OG2, OG10...
+  const naturalByName = (a: any, b: any) =>
+    String(a?.name ?? "").localeCompare(String(b?.name ?? ""), "de", {
+      numeric: true,
+      sensitivity: "base",
+    });
+
   return (
     <div className="col-span-1 overflow-y-auto max-h-[80vh] pr-2">
       <div className="space-y-8">
@@ -795,7 +802,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
           </div>
         )}
 
-        {bauteile.map((b) => {
+        {[...bauteile].sort(naturalByName).map((b) => {
           const bPersisted: number | null =
             b.process_model?.id ?? b.process_model_id ?? null;
           const bPending = pendingPM[keyOf("bauteil", b.id)];
@@ -941,7 +948,7 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
 
               {/* Stiegen */}
               <div className="mt-4 space-y-4 ml-4 border-l border-cyan-700 pl-4">
-                {b.stiegen?.map((s: any) => {
+                {[...(b.stiegen ?? [])].sort(naturalByName).map((s: any) => {
                   const sPersisted: number | null =
                     s.process_model?.id ?? s.process_model_id ?? null;
                   const sPending = pendingPM[keyOf("stiege", s.id)];
@@ -1081,320 +1088,349 @@ const ProjektStruktur: React.FC<ProjektStrukturProps> = ({
 
                       {/* Ebenen */}
                       <div className="mt-2 ml-4 space-y-3 border-l border-indigo-500 pl-4">
-                        {s.ebenen?.map((e: any) => {
-                          const ePersisted: number | null =
-                            e.process_model?.id ?? e.process_model_id ?? null;
-                          const ePending = pendingPM[keyOf("ebene", e.id)];
-                          const eEff = eff(
-                            ePending,
-                            sPending ?? bPending ?? null,
-                            ePersisted
-                          );
-                          const eStartPersisted: string | null =
-                            e.start_soll ?? null;
-                          const eStartPending =
-                            pendingStart[keyOf("ebene", e.id)];
-                          const eKey = keyOf("ebene", e.id);
-                          const eStartEff =
-                            Object.prototype.hasOwnProperty.call(
-                              pendingStart,
-                              eKey
-                            )
-                              ? pendingStart[eKey]
-                              : Object.prototype.hasOwnProperty.call(
-                                  pendingStart,
-                                  sKey
-                                )
-                              ? pendingStart[sKey]
-                              : Object.prototype.hasOwnProperty.call(
-                                  pendingStart,
-                                  bStartKey
-                                )
-                              ? pendingStart[bStartKey]
-                              : eStartPersisted ?? projectStart ?? null;
+                        {[...(s.ebenen ?? [])]
+                          .sort(naturalByName)
+                          .map((e: any) => {
+                            const ePersisted: number | null =
+                              e.process_model?.id ?? e.process_model_id ?? null;
+                            const ePending = pendingPM[keyOf("ebene", e.id)];
+                            const eEff = eff(
+                              ePending,
+                              sPending ?? bPending ?? null,
+                              ePersisted
+                            );
+                            const eStartPersisted: string | null =
+                              e.start_soll ?? null;
+                            const eStartPending =
+                              pendingStart[keyOf("ebene", e.id)];
+                            const eKey = keyOf("ebene", e.id);
+                            const eStartEff =
+                              Object.prototype.hasOwnProperty.call(
+                                pendingStart,
+                                eKey
+                              )
+                                ? pendingStart[eKey]
+                                : Object.prototype.hasOwnProperty.call(
+                                    pendingStart,
+                                    sKey
+                                  )
+                                ? pendingStart[sKey]
+                                : Object.prototype.hasOwnProperty.call(
+                                    pendingStart,
+                                    bStartKey
+                                  )
+                                ? pendingStart[bStartKey]
+                                : eStartPersisted ?? projectStart ?? null;
 
-                          return (
-                            <div key={e.id}>
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-emerald-300">
-                                  🏢
-                                  {canEdit &&
-                                  editingNames[`ebene-${e.id}`] !==
-                                    undefined ? (
-                                    <>
-                                      <input
-                                        value={editingNames[`ebene-${e.id}`]}
-                                        onChange={(ev) =>
-                                          handleNameChange(
-                                            "ebene",
-                                            e.id,
-                                            ev.target.value
-                                          )
-                                        }
-                                        className="bg-gray-800 text-white border border-emerald-500 rounded px-3 py-1 text-sm"
-                                      />
-                                      <button
-                                        onClick={() => saveEdit("ebene", e.id)}
-                                      >
-                                        💾
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span>{e.name}</span>
-                                      <ProcessModelDropdown
-                                        label="Prozessmodell"
-                                        widthClass="w-[220px]"
-                                        key={`pm-ebene-${e.id}-${eEff}`}
-                                        itemId={e.id}
-                                        type="ebene"
-                                        selectedId={eEff}
-                                        selectedName={undefined}
-                                        disabled={!canEdit}
-                                        deferCommit={true}
-                                        onSelect={async (newId) => {
-                                          handleSelectPM("ebene", e.id, newId);
-                                          await commitPM("ebene", e.id, newId);
-                                          await loadStructure();
-                                        }}
-                                      />
-
-                                      {canEdit && (
+                            return (
+                              <div key={e.id}>
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 text-emerald-300">
+                                    🏢
+                                    {canEdit &&
+                                    editingNames[`ebene-${e.id}`] !==
+                                      undefined ? (
+                                      <>
+                                        <input
+                                          value={editingNames[`ebene-${e.id}`]}
+                                          onChange={(ev) =>
+                                            handleNameChange(
+                                              "ebene",
+                                              e.id,
+                                              ev.target.value
+                                            )
+                                          }
+                                          className="bg-gray-800 text-white border border-emerald-500 rounded px-3 py-1 text-sm"
+                                        />
                                         <button
                                           onClick={() =>
-                                            startEditing(e, "ebene")
+                                            saveEdit("ebene", e.id)
                                           }
                                         >
-                                          ✏️
+                                          💾
                                         </button>
-                                      )}
-                                    </>
-                                  )}
-                                  {canEdit && (
-                                    <button
-                                      onClick={() => deleteItem("ebene", e.id)}
-                                      className="text-red-400"
-                                    >
-                                      🗑
-                                    </button>
-                                  )}
-                                  <div>
-                                    <CustomDatePicker
-                                      label="Start (Soll)"
-                                      value={displayStartEbene(e)}
-                                      disabled={!canEdit}
-                                      onChange={async (v) => {
-                                        handleSelectStart("ebene", e.id, v);
-                                        await commitStart("ebene", e.id, v);
-                                        await loadStructure();
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>{e.name}</span>
+                                        <ProcessModelDropdown
+                                          label="Prozessmodell"
+                                          widthClass="w-[220px]"
+                                          key={`pm-ebene-${e.id}-${eEff}`}
+                                          itemId={e.id}
+                                          type="ebene"
+                                          selectedId={eEff}
+                                          selectedName={undefined}
+                                          disabled={!canEdit}
+                                          deferCommit={true}
+                                          onSelect={async (newId) => {
+                                            handleSelectPM(
+                                              "ebene",
+                                              e.id,
+                                              newId
+                                            );
+                                            await commitPM(
+                                              "ebene",
+                                              e.id,
+                                              newId
+                                            );
+                                            await loadStructure();
+                                          }}
+                                        />
 
-                              {/* Neue Tops */}
-                              {canEdit && (
-                                <div className="mt-2 flex items-center gap-2 ml-4">
-                                  <input
-                                    type="text"
-                                    value={newTops[e.id] || ""}
-                                    onFocus={() => {
-                                      if (!newTops[e.id]) {
-                                        // stiege objekt je “s”; trebamo ga da saberemo sve tops po Ebenama u toj stiege
-                                        const suggestion = suggestTopName(s);
-                                        setNewTops((prev) => ({
-                                          ...prev,
-                                          [e.id]: suggestion,
-                                        }));
-                                      }
-                                    }}
-                                    onChange={(ev) =>
-                                      setNewTops((prev) => ({
-                                        ...prev,
-                                        [e.id]: ev.target.value,
-                                      }))
-                                    }
-                                    placeholder="Neuer Top"
-                                    className="bg-gray-800 text-white border border-pink-400 rounded px-3 py-1 text-sm"
-                                  />
-                                  <button
-                                    onClick={() => {
-                                      if (!newTops[e.id]) {
-                                        const suggestion = suggestTopName(s);
-                                        setNewTops((prev) => ({
-                                          ...prev,
-                                          [e.id]: suggestion,
-                                        }));
-                                        return;
-                                      }
-                                      addTop(e.id);
-                                    }}
-                                    className="text-pink-300 hover:text-pink-200"
-                                  >
-                                    + Top
-                                  </button>
-                                </div>
-                              )}
-
-                              {/* Tops */}
-                              <div className="mt-2 ml-4 space-y-2 border-l border-pink-500 pl-4">
-                                {e.tops?.map((t: any) => {
-                                  const tPersisted: number | null =
-                                    t.process_model?.id ??
-                                    t.process_model_id ??
-                                    null;
-                                  const tPending =
-                                    pendingPM[keyOf("top", t.id)];
-                                  const tEff = eff(
-                                    tPending,
-                                    ePending ?? sPending ?? bPending ?? null,
-                                    tPersisted
-                                  );
-                                  const tStartPersisted: string | null =
-                                    t.start_soll ?? null;
-                                  const tStartPending =
-                                    pendingStart[keyOf("top", t.id)];
-                                  const tStartDerived =
-                                    derivedStartByTop[t.id] ?? null; // 🆕 iz taskova
-
-                                  const tKey = keyOf("top", t.id);
-                                  const tStartEff =
-                                    Object.prototype.hasOwnProperty.call(
-                                      pendingStart,
-                                      tKey
-                                    )
-                                      ? pendingStart[tKey]
-                                      : Object.prototype.hasOwnProperty.call(
-                                          pendingStart,
-                                          eKey
-                                        )
-                                      ? pendingStart[eKey]
-                                      : Object.prototype.hasOwnProperty.call(
-                                          pendingStart,
-                                          sKey
-                                        )
-                                      ? pendingStart[sKey]
-                                      : Object.prototype.hasOwnProperty.call(
-                                          pendingStart,
-                                          bStartKey
-                                        )
-                                      ? pendingStart[bStartKey]
-                                      : tStartPersisted ??
-                                        tStartDerived ??
-                                        projectStart ??
-                                        null;
-
-                                  const topPmNameDerived =
-                                    derivedPmNameByTop[t.id];
-
-                                  return (
-                                    <div
-                                      key={t.id}
-                                      className="flex items-center justify-between"
-                                    >
-                                      <div className="flex items-center gap-2 text-pink-200">
-                                        🚪
-                                        {canEdit &&
-                                        editingNames[`top-${t.id}`] !==
-                                          undefined ? (
-                                          <>
-                                            <input
-                                              value={
-                                                editingNames[`top-${t.id}`]
-                                              }
-                                              onChange={(ev) =>
-                                                handleNameChange(
-                                                  "top",
-                                                  t.id,
-                                                  ev.target.value
-                                                )
-                                              }
-                                              className="bg-gray-800 text-white border border-pink-300 rounded px-3 py-1 text-sm"
-                                            />
-                                            <button
-                                              onClick={() =>
-                                                saveEdit("top", t.id)
-                                              }
-                                            >
-                                              💾
-                                            </button>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <span>{t.name}</span>
-                                            <ProcessModelDropdown
-                                              label="Prozessmodell"
-                                              widthClass="w-[220px]"
-                                              key={`pm-top-${t.id}-${
-                                                tEff ?? "nil"
-                                              }-${topPmNameDerived ?? "nil"}`} // forsira svježi prikaz
-                                              itemId={t.id}
-                                              type="top"
-                                              selectedId={tEff}
-                                              selectedName={
-                                                tEff
-                                                  ? undefined
-                                                  : topPmNameDerived
-                                              } // 🆕 ako ID ne znamo, prikaži naziv
-                                              disabled={!canEdit}
-                                              deferCommit={true} // (može ostati kako već imaš)
-                                              onSelect={async (newId) => {
-                                                handleSelectPM(
-                                                  "top",
-                                                  t.id,
-                                                  newId
-                                                );
-                                                await commitPM(
-                                                  "top",
-                                                  t.id,
-                                                  newId
-                                                ); // tvoja postojeća fn
-                                                await loadStructure();
-                                              }}
-                                            />
-
-                                            {canEdit && (
-                                              <button
-                                                onClick={() =>
-                                                  startEditing(t, "top")
-                                                }
-                                              >
-                                                ✏️
-                                              </button>
-                                            )}
-                                          </>
-                                        )}
                                         {canEdit && (
                                           <button
                                             onClick={() =>
-                                              deleteItem("top", t.id)
+                                              startEditing(e, "ebene")
                                             }
-                                            className="text-red-400"
                                           >
-                                            🗑
+                                            ✏️
                                           </button>
                                         )}
-                                        <div>
-                                          <CustomDatePicker
-                                            label="Start (Soll)"
-                                            value={displayStartTop(t)}
-                                            disabled={!canEdit}
-                                            onChange={async (v) => {
-                                              handleSelectStart("top", t.id, v);
-                                              await commitStart("top", t.id, v);
-                                              await loadStructure();
-                                            }}
-                                          />
-                                        </div>
-                                      </div>
+                                      </>
+                                    )}
+                                    {canEdit && (
+                                      <button
+                                        onClick={() =>
+                                          deleteItem("ebene", e.id)
+                                        }
+                                        className="text-red-400"
+                                      >
+                                        🗑
+                                      </button>
+                                    )}
+                                    <div>
+                                      <CustomDatePicker
+                                        label="Start (Soll)"
+                                        value={displayStartEbene(e)}
+                                        disabled={!canEdit}
+                                        onChange={async (v) => {
+                                          handleSelectStart("ebene", e.id, v);
+                                          await commitStart("ebene", e.id, v);
+                                          await loadStructure();
+                                        }}
+                                      />
                                     </div>
-                                  );
-                                })}
+                                  </div>
+                                </div>
+
+                                {/* Neue Tops */}
+                                {canEdit && (
+                                  <div className="mt-2 flex items-center gap-2 ml-4">
+                                    <input
+                                      type="text"
+                                      value={newTops[e.id] || ""}
+                                      onFocus={() => {
+                                        if (!newTops[e.id]) {
+                                          // stiege objekt je “s”; trebamo ga da saberemo sve tops po Ebenama u toj stiege
+                                          const suggestion = suggestTopName(s);
+                                          setNewTops((prev) => ({
+                                            ...prev,
+                                            [e.id]: suggestion,
+                                          }));
+                                        }
+                                      }}
+                                      onChange={(ev) =>
+                                        setNewTops((prev) => ({
+                                          ...prev,
+                                          [e.id]: ev.target.value,
+                                        }))
+                                      }
+                                      placeholder="Neuer Top"
+                                      className="bg-gray-800 text-white border border-pink-400 rounded px-3 py-1 text-sm"
+                                    />
+                                    <button
+                                      onClick={() => {
+                                        if (!newTops[e.id]) {
+                                          const suggestion = suggestTopName(s);
+                                          setNewTops((prev) => ({
+                                            ...prev,
+                                            [e.id]: suggestion,
+                                          }));
+                                          return;
+                                        }
+                                        addTop(e.id);
+                                      }}
+                                      className="text-pink-300 hover:text-pink-200"
+                                    >
+                                      + Top
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* Tops */}
+                                <div className="mt-2 ml-4 space-y-2 border-l border-pink-500 pl-4">
+                                  {[...(e.tops ?? [])]
+                                    .sort(naturalByName)
+                                    .map((t: any) => {
+                                      const tPersisted: number | null =
+                                        t.process_model?.id ??
+                                        t.process_model_id ??
+                                        null;
+                                      const tPending =
+                                        pendingPM[keyOf("top", t.id)];
+                                      const tEff = eff(
+                                        tPending,
+                                        ePending ??
+                                          sPending ??
+                                          bPending ??
+                                          null,
+                                        tPersisted
+                                      );
+                                      const tStartPersisted: string | null =
+                                        t.start_soll ?? null;
+                                      const tStartPending =
+                                        pendingStart[keyOf("top", t.id)];
+                                      const tStartDerived =
+                                        derivedStartByTop[t.id] ?? null; // 🆕 iz taskova
+
+                                      const tKey = keyOf("top", t.id);
+                                      const tStartEff =
+                                        Object.prototype.hasOwnProperty.call(
+                                          pendingStart,
+                                          tKey
+                                        )
+                                          ? pendingStart[tKey]
+                                          : Object.prototype.hasOwnProperty.call(
+                                              pendingStart,
+                                              eKey
+                                            )
+                                          ? pendingStart[eKey]
+                                          : Object.prototype.hasOwnProperty.call(
+                                              pendingStart,
+                                              sKey
+                                            )
+                                          ? pendingStart[sKey]
+                                          : Object.prototype.hasOwnProperty.call(
+                                              pendingStart,
+                                              bStartKey
+                                            )
+                                          ? pendingStart[bStartKey]
+                                          : tStartPersisted ??
+                                            tStartDerived ??
+                                            projectStart ??
+                                            null;
+
+                                      const topPmNameDerived =
+                                        derivedPmNameByTop[t.id];
+
+                                      return (
+                                        <div
+                                          key={t.id}
+                                          className="flex items-center justify-between"
+                                        >
+                                          <div className="flex items-center gap-2 text-pink-200">
+                                            🚪
+                                            {canEdit &&
+                                            editingNames[`top-${t.id}`] !==
+                                              undefined ? (
+                                              <>
+                                                <input
+                                                  value={
+                                                    editingNames[`top-${t.id}`]
+                                                  }
+                                                  onChange={(ev) =>
+                                                    handleNameChange(
+                                                      "top",
+                                                      t.id,
+                                                      ev.target.value
+                                                    )
+                                                  }
+                                                  className="bg-gray-800 text-white border border-pink-300 rounded px-3 py-1 text-sm"
+                                                />
+                                                <button
+                                                  onClick={() =>
+                                                    saveEdit("top", t.id)
+                                                  }
+                                                >
+                                                  💾
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span>{t.name}</span>
+                                                <ProcessModelDropdown
+                                                  label="Prozessmodell"
+                                                  widthClass="w-[220px]"
+                                                  key={`pm-top-${t.id}-${
+                                                    tEff ?? "nil"
+                                                  }-${
+                                                    topPmNameDerived ?? "nil"
+                                                  }`} // forsira svježi prikaz
+                                                  itemId={t.id}
+                                                  type="top"
+                                                  selectedId={tEff}
+                                                  selectedName={
+                                                    tEff
+                                                      ? undefined
+                                                      : topPmNameDerived
+                                                  } // 🆕 ako ID ne znamo, prikaži naziv
+                                                  disabled={!canEdit}
+                                                  deferCommit={true} // (može ostati kako već imaš)
+                                                  onSelect={async (newId) => {
+                                                    handleSelectPM(
+                                                      "top",
+                                                      t.id,
+                                                      newId
+                                                    );
+                                                    await commitPM(
+                                                      "top",
+                                                      t.id,
+                                                      newId
+                                                    ); // tvoja postojeća fn
+                                                    await loadStructure();
+                                                  }}
+                                                />
+
+                                                {canEdit && (
+                                                  <button
+                                                    onClick={() =>
+                                                      startEditing(t, "top")
+                                                    }
+                                                  >
+                                                    ✏️
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                            {canEdit && (
+                                              <button
+                                                onClick={() =>
+                                                  deleteItem("top", t.id)
+                                                }
+                                                className="text-red-400"
+                                              >
+                                                🗑
+                                              </button>
+                                            )}
+                                            <div>
+                                              <CustomDatePicker
+                                                label="Start (Soll)"
+                                                value={displayStartTop(t)}
+                                                disabled={!canEdit}
+                                                onChange={async (v) => {
+                                                  handleSelectStart(
+                                                    "top",
+                                                    t.id,
+                                                    v
+                                                  );
+                                                  await commitStart(
+                                                    "top",
+                                                    t.id,
+                                                    v
+                                                  );
+                                                  await loadStructure();
+                                                }}
+                                              />
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
                       </div>
                     </div>
                   );

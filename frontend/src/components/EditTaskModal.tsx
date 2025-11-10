@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
+import CustomDatePicker from "../components/CustomDatePicker";
+
 
 // gore u fajlu
 export type EditTaskModalTask = {
@@ -132,43 +134,44 @@ const EditTaskModal: React.FC<Props> = React.memo(({ task, onSave, onDelete, onC
           <div className="grid grid-cols-2 gap-3">
             <label className="text-sm">
               Start (plan)
-              <input
-                type="date"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={startSoll}
-                onChange={(e) => setStartSoll(e.target.value)}
+              <CustomDatePicker
+                value={startSoll || null}
+                onChange={(v) => setStartSoll(v ?? "")}
+                variant="light"
+                label=""
               />
             </label>
 
             <label className="text-sm">
               End (plan)
-              <input
-                type="date"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={endSoll}
-                onChange={(e) => setEndSoll(e.target.value)}
+              <CustomDatePicker
+                value={endSoll || null}
+                onChange={(v) => setEndSoll(v ?? "")}
+                variant="light"
+                label=""
               />
             </label>
 
             <label className="text-sm">
               Start (ist)
-              <input
-                type="date"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={startIst}
-                onChange={(e) => setStartIst(e.target.value)}
+              <CustomDatePicker
+                value={startIst || null}
+                onChange={(v) => setStartIst(v ?? "")}
+                variant="light"
+                label=""
               />
             </label>
 
             <label className="text-sm">
               End (ist)
-              <input
-                type="date"
-                className="mt-1 w-full rounded border px-2 py-1"
-                value={endIst}
-                onChange={(e) => setEndIst(e.target.value)}
+              <CustomDatePicker
+                value={endIst || null}
+                onChange={(v) => setEndIst(v ?? "")}
+                variant="light"
+                label=""
               />
             </label>
+
             <label className="block text-sm mb-3">
               Subunternehmen (Dropdown-Menü)
               <select
@@ -223,3 +226,5 @@ const EditTaskModal: React.FC<Props> = React.memo(({ task, onSave, onDelete, onC
 );
 
 export default EditTaskModal;
+
+              

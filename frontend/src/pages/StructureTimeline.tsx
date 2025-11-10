@@ -1,11 +1,12 @@
 // src/pages/StructureTimeline.tsx
-import React from "react";
+import React, { useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import resourceTimelinePlugin from "@fullcalendar/resource-timeline";
 import interactionPlugin from "@fullcalendar/interaction";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import deLocale from "@fullcalendar/core/locales/de";
 import { getProjectName } from "../api/project";
+import { Printer } from "lucide-react";
 
 
 import {
@@ -58,7 +59,18 @@ export default function StructureTimelinePage() {
     null
   );
   const [title, setTitle] = React.useState<string>("");
+  const [projRange, setProjRange] = React.useState<{
+    start: Date;
+    end: Date;
+  } | null>(null);
 
+  const projectDays = React.useMemo(() => {
+    if (!projRange) return null;
+    const ms = projRange.end.getTime() - projRange.start.getTime();
+    return Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+  }, [projRange]);
+
+  const [activeView, setActiveView] = useState("resourceTimelineMonth");
   // background eventi (praznici + vikendi), kao u TaskCalendar
   const [holidayEvents, setHolidayEvents] = React.useState<BgEvent[]>([]);
   const [weekendEvents, setWeekendEvents] = React.useState<BgEvent[]>([]);
@@ -84,6 +96,32 @@ export default function StructureTimelinePage() {
     try {
       const res = await fetchStructureTimeline(projectIdNum, { level });
       setData(res);
+      // izračun najmanjeg starta i najvećeg enda
+      const starts: number[] = [];
+      const ends: number[] = [];
+      for (const seg of res.segments) {
+        for (const a of seg.activities) {
+          if (a.start) starts.push(new Date(a.start).getTime());
+          if (a.end) ends.push(new Date(a.end).getTime());
+        }
+      }
+
+      if (starts.length && ends.length) {
+        const start = new Date(Math.min(...starts));
+        const end = new Date(Math.max(...ends));
+        setProjRange({ start, end });
+
+        // auto scroll na početak projekta
+        const api = calRef.current?.getApi?.();
+        api?.gotoDate(new Date());
+      } else {
+        // fallback: 6 sedmica od danas, da kalendar ipak nešto prikaže
+        const start = new Date();
+        const end = new Date();
+        end.setDate(start.getDate() + 42);
+        setProjRange({ start, end });
+      }
+
       const api = calRef.current?.getApi?.();
       if (api?.view) setTitle(api.view.title);
     } finally {
@@ -241,7 +279,7 @@ export default function StructureTimelinePage() {
         </select>
 
         {/* 👉 desna grupa dugmadi */}
-        <div className="flex gap-2 ml-auto">
+        <div className="flex gap-2 ml-auto no-print">
           <button
             className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded"
             onClick={() => navigate("/dashboard")}
@@ -261,6 +299,13 @@ export default function StructureTimelinePage() {
             className="text-xs bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded"
           >
             ◀ Timeline
+          </button>
+
+          <button
+            onClick={() => window.print()}
+            className="flex items-center gap-1 text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded"
+          >
+            <Printer size={14} /> Drucken
           </button>
         </div>
       </div>
@@ -298,34 +343,43 @@ export default function StructureTimelinePage() {
 
         <div className="flex items-center gap-2">
           <button
-            className="px-3 py-1 rounded border hover:bg-gray-50"
-            onClick={() => setView("resourceTimelineDay")}
-            title="Tag"
-            aria-label="Tag"
+            onClick={() => {
+              setView("resourceTimelineDay");
+              setActiveView("resourceTimelineDay");
+            }}
+            className={`px-3 py-1 rounded border ${
+              activeView === "resourceTimelineDay"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "hover:bg-gray-50"
+            }`}
           >
             Tag
           </button>
+
           <button
-            className="px-3 py-1 rounded border hover:bg-gray-50"
-            onClick={() => setView("resourceTimelineWeek")}
-            title="Woche"
-            aria-label="Woche"
+            onClick={() => {
+              setView("resourceTimelineWeek");
+              setActiveView("resourceTimelineWeek");
+            }}
+            className={`px-3 py-1 rounded border ${
+              activeView === "resourceTimelineWeek"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "hover:bg-gray-50"
+            }`}
           >
             Woche
           </button>
+
           <button
-            className="px-3 py-1 rounded border hover:bg-gray-50"
-            onClick={() => setView("resourceTimelineMonth")}
-            title="Monat"
-            aria-label="Monat"
-          >
-            Monat
-          </button>
-          <button
-            className="px-3 py-1 rounded border hover:bg-gray-50"
-            onClick={() => setView("dayGridMonth")}
-            title="Monat (Raster)"
-            aria-label="Monat (Raster)"
+            onClick={() => {
+              setView("resourceTimelineMonth");
+              setActiveView("resourceTimelineMonth");
+            }}
+            className={`px-3 py-1 rounded border ${
+              activeView === "resourceTimelineMonth"
+                ? "bg-blue-600 text-white border-blue-600"
+                : "hover:bg-gray-50"
+            }`}
           >
             Monat
           </button>
@@ -338,12 +392,9 @@ export default function StructureTimelinePage() {
           <b>Legende:</b>
         </span>
         <span>✔ erledigt / gesamte Aktivitäten im Segment</span>
-        <span>⚠ Anzahl der verzögerten Aktivitäten</span>
+        <span>⚠ Anzahl überfälliger Aktivitäten</span>
 
-        <span>
-          Fortschrittsbalken = % der abgeschlossenen Aktivitäten innerhalb der
-          Aktivität
-        </span>
+        <span>Fortschrittsbalken = % der abgeschlossenen Aktivitäten</span>
       </div>
 
       {/* Calendar */}
@@ -352,11 +403,33 @@ export default function StructureTimelinePage() {
         plugins={[resourceTimelinePlugin, interactionPlugin, dayGridPlugin]}
         locales={[deLocale]}
         locale="de"
+        // 👇 ostaviš ako želiš alatke "Tag/Woche/Monat" – ali baza će biti timeline
         initialView="resourceTimelineMonth"
+        // ✅ uži stupci + jedan slot = 1 dan
+        slotDuration={{ days: 1 }}
+        slotMinWidth={28}
+        // ✅ raspon od početka do kraja projekta (kad ga znamo)
+        stickyHeaderDates={true}
+        // globalni visibleRange ostavi kako je (po projRange)
+        visibleRange={
+          projRange
+            ? () => ({ start: projRange.start, end: projRange.end })
+            : undefined
+        }
+        views={{
+          projectTimeline: {
+            type: "resourceTimeline",
+            // ako hoćeš da view sam “zakači” raspon projekta (neovisno o globalnom)
+            visibleRange: projRange
+              ? { start: projRange.start, end: projRange.end }
+              : undefined,
+            slotDuration: { days: 1 },
+            slotMinWidth: 28, // usko kao u Monat
+          },
+        }}
         headerToolbar={false}
         resourceAreaWidth="140px"
         resources={resources}
-        // ⬇️ koristimo eventSources (taskovi + vikendi + praznici), kao u TaskCalendar
         eventSources={eventSources}
         resourceAreaHeaderContent={
           level === "ebene"
@@ -370,18 +443,16 @@ export default function StructureTimelinePage() {
         editable={false}
         eventOverlap={true}
         height="auto"
-        // dvoredni header + naziv praznika u donjem redu (isti princip kao u TaskCalendar)
         slotLabelFormat={[
-          { year: "numeric", month: "long" }, // gornji red
-          { day: "2-digit" }, // donji red (broj)
+          { year: "numeric", month: "long" },
+          { day: "2-digit" },
         ]}
         slotLabelContent={(arg) => {
-          // gornji red (mjesec/godina) – pusti default string
           if (!/^\d+$/.test(arg.text)) return arg.text;
           const dayNum = arg.text;
           const d = arg.date;
           const ymd = toYMD(d);
-          const weekday = d.toLocaleDateString("de-AT", { weekday: "short" }); // Mo/Di/...
+          const weekday = d.toLocaleDateString("de-AT", { weekday: "short" });
           const holiday = holidayMap.get(ymd);
           return (
             <div
@@ -416,7 +487,6 @@ export default function StructureTimelinePage() {
             </div>
           );
         }}
-        // kada se promijeni vidljivi raspon, izračunaj AU praznike + vikende za taj raspon (kao u TaskCalendar)
         datesSet={(arg) => {
           setTitle(arg.view.title);
           const startStr = arg.startStr.slice(0, 10);

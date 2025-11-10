@@ -719,7 +719,7 @@ const TaskCalendar = () => {
     setSelectedBauteile([]);
     setSelectedActivities([]);
     setSelectedProcessModels([]);
-    setAutoDateMode(true);
+    setAutoDateMode(false);
   };
 
   // (reset na klik taba)
