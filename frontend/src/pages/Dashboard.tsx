@@ -249,6 +249,23 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     void refreshProjectsSilently();
   }, []);
+
+  const getProjectBg = (p: any) => {
+    // ako image_url dolazi iz backenda ("/uploads/...") => prebaci na API URL
+    if (p.image_url && typeof p.image_url === "string") {
+      if (p.image_url.startsWith("/uploads")) {
+        return absoluteUrl(p.image_url);
+      }
+      // ako je već pun URL (http...), pusti ga
+      if (p.image_url.startsWith("http")) {
+        return p.image_url;
+      }
+    }
+
+    // fallback: frontend slika iz public/images
+    return "/images/Startseite-Winarsky_01.png";
+  };
+  
   
 
   return (
@@ -432,13 +449,10 @@ const Dashboard: React.FC = () => {
               }}
               className="relative group rounded-2xl overflow-hidden shadow-xl cursor-pointer transform hover:scale-[1.02] transition duration-300 min-h-[220px]"
             >
-              {/* Background image */}
               <div
                 className="absolute inset-0 bg-cover bg-center"
                 style={{
-                  backgroundImage: `url('${
-                    p.image_url || "/images/Startseite-Winarsky_01.png"
-                  }')`,
+                  backgroundImage: `url('${getProjectBg(p)}')`,
                 }}
               />
 
@@ -555,10 +569,7 @@ const Dashboard: React.FC = () => {
                     <div
                       className="w-full h-full bg-center bg-cover"
                       style={{
-                        backgroundImage: `url('${
-                          editing.image_url ||
-                          "/images/Startseite-Winarsky_01.png"
-                        }')`,
+                        backgroundImage: `url('${getProjectBg(editing)}')`,
                       }}
                     />
                   </div>
