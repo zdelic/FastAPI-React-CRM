@@ -250,21 +250,13 @@ const Dashboard: React.FC = () => {
     void refreshProjectsSilently();
   }, []);
 
-  const getProjectBg = (p: any) => {
-    // ako image_url dolazi iz backenda ("/uploads/...") => prebaci na API URL
-    if (p.image_url && typeof p.image_url === "string") {
-      if (p.image_url.startsWith("/uploads")) {
-        return absoluteUrl(p.image_url);
-      }
-      // ako je već pun URL (http...), pusti ga
-      if (p.image_url.startsWith("http")) {
-        return p.image_url;
-      }
-    }
-
-    // fallback: frontend slika iz public/images
+  const getProjectBg = (p?: any) => {
+    const url = p?.image_url ?? "";
+    if (url.startsWith("/uploads")) return absoluteUrl(url);
+    if (url.startsWith("http")) return url;
     return "/images/Startseite-Winarsky_01.png";
   };
+  
   
   
 
@@ -451,9 +443,7 @@ const Dashboard: React.FC = () => {
             >
               <div
                 className="absolute inset-0 bg-cover bg-center"
-                style={{
-                  backgroundImage: `url('${getProjectBg(p)}')`,
-                }}
+                style={{ backgroundImage: `url('${getProjectBg(p)}')` }}
               />
 
               {/* Dark gradient overlay */}
