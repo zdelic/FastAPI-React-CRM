@@ -250,13 +250,14 @@ const Dashboard: React.FC = () => {
     void refreshProjectsSilently();
   }, []);
 
-  const getProjectBg = (p?: any) => {
-    const url = p?.image_url ?? "";
-    if (url.startsWith("/uploads")) return absoluteUrl(url);
-    if (url.startsWith("http")) return url;
-    return "/images/Startseite-Winarsky_01.png";
-  };
   
+
+const getProjectBg = (p?: any) => {
+  const url = p?.image_url ?? "";
+  if (url.startsWith("/uploads")) return absoluteUrl(url);
+  if (url.startsWith("http")) return url;
+  return "/images/Startseite-Winarsky_01.png";
+};
   
   
 
