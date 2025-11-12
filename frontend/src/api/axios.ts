@@ -28,4 +28,6 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config;
 });
 
+export const loaderBridge = api;
+
 export default api;
