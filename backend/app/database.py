@@ -1,28 +1,20 @@
 import os
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import sessionmaker
 
-# Glavni URL – na Railway-u dolazi iz env varijable DATABASE_URL
-# Lokalno, ako DATABASE_URL nije postavljen, koristi se SQLite test.db
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test.db")
+DATABASE_URL = os.getenv("DATABASE_URL")  # Railway postavlja ovo
+if DATABASE_URL:
+    # Railway/Prod — često treba sslmode=require
+    # Ako koristiš psycopg2: postavi "?sslmode=require" ako nije već tu
+    if "sslmode" not in DATABASE_URL:
+        DATABASE_URL = DATABASE_URL + "?sslmode=require"
+else:
+    # Lokalno: SQLite
+    DATABASE_URL = "sqlite:///./test.db"
 
-# Railway nekad koristi "postgres://", a SQLAlchemy želi "postgresql://"
-if SQLALCHEMY_DATABASE_URL.startswith("postgres://"):
-    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgres://", "postgresql://", 1)
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
 
-# Za SQLite je potreban connect_args, za Postgres nije
-connect_args = {"check_same_thread": False} if SQLALCHEMY_DATABASE_URL.startswith("sqlite") else {}
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args=connect_args)
-
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
-
-
-# 👇 OVO JE NEDOSTAJALO – dependency za FastAPI rute
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
