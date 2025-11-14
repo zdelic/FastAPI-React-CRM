@@ -250,7 +250,6 @@ const Dashboard: React.FC = () => {
     void refreshProjectsSilently();
   }, []);
 
-  
 
 const getProjectBg = (p?: any) => {
   const url = p?.image_url ?? "";

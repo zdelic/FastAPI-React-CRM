@@ -83,14 +83,15 @@ STATIC_DIR = BASE_DIR.parent / "static"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 # --- Middleware ---
+origins = [
+    "http://127.0.0.1:3000",
+    "http://localhost:3000",
+    "http://172.20.1.25:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://fast-api-react-crm.vercel.app",
-        "https://gerstl.vercel.app",
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -65,3 +65,6 @@ node_modules/
 # Windows metadata
 desktop.ini
 
+backend/test.db
+
+
